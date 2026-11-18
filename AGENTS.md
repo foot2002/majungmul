@@ -28,3 +28,5 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+- The app is a port of reference/majungmul-app.html: src/styles.css is its original CSS verbatim, src/majungmul/shell.ts its body markup, src/majungmul/app.ts its script (state S/M/UI, render, data-act handlers). Why: pixel/behavior parity with the reference; edit these instead of re-implementing in JSX/Tailwind.
