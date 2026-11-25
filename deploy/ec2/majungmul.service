@@ -9,6 +9,8 @@ WorkingDirectory=/srv/majungmul/current
 Environment=NODE_ENV=production
 Environment=HOST=127.0.0.1
 Environment=PORT=3000
+# Create /etc/majungmul/env with DATABASE_URL=postgresql://... (mode 600)
+EnvironmentFile=-/etc/majungmul/env
 ExecStart=/usr/bin/node /srv/majungmul/current/server/index.mjs
 Restart=always
 RestartSec=3

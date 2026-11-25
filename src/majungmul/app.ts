@@ -13,7 +13,7 @@ if(started)return;started=true;
    고정 데이터
    ========================================================= */
 /* 많이 쓸 업종 순서 (소상공인실태조사 2024: 숙박·음식점 79.6만 개, 도·소매 210만 개 중 동네 매장, 교육·개인서비스) */
-const IND_ORDER=['restaurant','cafe','academy','beauty','retail'];
+const IND_ORDER=['restaurant','cafe','academy','beauty','retail','hospital'];
 const IND = {
   restaurant:{label:'음식점',desc:'한식·분식·고깃집·치킨 등',item:'메뉴',itemPh:'예) 돼지국밥',sheet:'메뉴판',postHour:[11,0],
     req:[{k:'food',label:'음식 종류',type:'one',options:['한식','분식','고기·구이','중식','일식','양식','치킨·호프','기타']},
@@ -61,7 +61,19 @@ const IND = {
     topics:[{title:'이번 주 새로 들어온 상품',why:'새 상품은 단골이 다시 들르는 이유예요',tag:'신상품',kind:'메뉴'},{title:'선물 추천',why:'선물 고민하는 손님이 검색을 많이 해요',tag:'선물',kind:'메뉴'},{title:'가게 둘러보기',why:'처음 오는 손님은 분위기를 먼저 봐요',tag:'공간',kind:'공간'}],
     questions:['이번 주 들어온 것 중 사장님이 가장 추천하는 건요?','상품은 어떤 기준으로 고르세요?','손님들이 선물로 가장 많이 사가는 건요?','가게를 열게 된 이야기를 들려주세요.'],
     aud:['선물 고르는 분','동네 단골','직장인','가족','처음 오는 손님'],why:['새 상품','이번 주만','할인·혜택','선물 시즌','예약·픽업','오늘의 추천'],
-    banned:['최고','1등','무조건']}
+    banned:['최고','1등','무조건']},
+  hospital:{label:'병원',desc:'의원·클리닉·한의원·치과 등',item:'진료',itemPh:'예) 피부 레이저 상담',sheet:'진료 안내',postHour:[18,0],itemOptional:true,
+    req:[{k:'medField',label:'진료분야',type:'multi',options:['피부·탈모','감기·알레르기','근골격','소화기','정신·신경','암·종양','여성·비뇨 질환','만성·심혈관','눈 질환','귀·코·목 질환','치아·구강']},
+         {k:'medDept',label:'진료과목',type:'multi',options:['내과','소아과','피부과','이비인후과','정형외과','외과','가정의학과','신경외과','마취통증과','성형외과','산부인과','안과','정신의학과','비뇨의학과','신경과','재활의학과','흉부외과','영상의학과','치과','한의원']},
+         {k:'specialist',label:'전문의여부',type:'one',options:['예','아니오']},
+         {k:'nightHoliday',label:'야간/휴일',type:'multi',options:['야간진료','24시간진료','토요일진료','일요일진료','공휴일진료']},
+         {k:'booking',label:'예약가능',type:'one',options:['가능','불가']}],
+    extra:[['doctor','원장·의료진','예) 피부과 전문의, 진료 15년'],['insurance','보험·급여','예) 건강보험 적용'],['parkingInfo','주차 안내','예) 건물 지하 1시간 무료'],['phone','예약·문의 전화','예) 02-000-0000']],
+    strengthsEx:['해당 분야 전문의 진료','대기 시간 짧은 예약제','야간·휴일 진료','친절한 설명','동네에서 오래 본 병원'],
+    topics:[{title:'진료 과목·분야 소개',why:'처음 찾는 환자는 어떤 병을 보는지부터 확인해요',tag:'진료',kind:'공간'},{title:'의료진·전문의 소개',why:'병원을 고를 때 전문 여부가 큰 기준이에요',tag:'의료진',kind:'사람'},{title:'예약·야간 진료 안내',why:'방문 전 가장 많이 묻는 정보예요',tag:'안내',kind:'공간'}],
+    questions:['우리 병원이 환자분들께 가장 자신 있는 진료는 뭐예요?','초진 환자가 가장 많이 묻는 질문은요?','야간·휴일 진료를 시작한 이유가 있나요?','진료할 때 꼭 지키는 원칙이 있나요?'],
+    aud:['초진 환자','재진·관리 환자','직장인','아이 동반 보호자','근처 거주 환자'],why:['예약 안내','야간·휴일 진료','전문의 소개','건강 정보','검진·상담','새 진료 시작'],
+    banned:['최고','1등','무조건','완치','완치 보장','치료 보장','100% 효과','부작용 없는','기적','무조건 낫']}
 };
 function reqStatus(p){p=p||S.profile;const T=IND[p.industry];const f=p.fields||{};
   const list=[{label:'가게 이름',ok:!!p.name.trim()},{label:'동네',ok:!!p.area.trim()},{label:'영업시간',ok:!!p.hours.trim()}]
@@ -83,6 +95,15 @@ const CH=[
 ];
 const CHMAP=Object.fromEntries(CH.map(c=>[c.id,c]));
 const DRAFT_CH=['blog','insta','shorts','threads','facebook','daangn'];
+const SNS_FIELDS=[
+  {k:'insta',label:'인스타그램',ph:'예) https://instagram.com/store 또는 @store'},
+  {k:'youtube',label:'유튜브',ph:'예) https://youtube.com/@store'},
+  {k:'threads',label:'스레드',ph:'예) https://www.threads.net/@store'},
+  {k:'facebook',label:'페이스북',ph:'예) https://facebook.com/store'},
+  {k:'daangn',label:'당근',ph:'예) 비즈프로필 주소 또는 가게명'},
+  {k:'blog',label:'네이버 블로그',ph:'예) https://blog.naver.com/store'}
+];
+const emptySns=()=>Object.fromEntries(SNS_FIELDS.map(x=>[x.k,'']));
 const DAY=864e5, ARCHIVE_DAYS=90;
 
 /* =========================================================
@@ -90,7 +111,7 @@ const DAY=864e5, ARCHIVE_DAYS=90;
    ========================================================= */
 function baseState(){
   return {v:2,example:false,
-    profile:{industry:'restaurant',name:'',area:'',hours:'',menu:[],strengths:[],tone:'warm',banned:IND.restaurant.banned.slice(),extra:{},fields:{}},setupDone:false,
+    profile:{industry:'restaurant',name:'',area:'',hours:'',menu:[],strengths:[],tone:'warm',banned:IND.restaurant.banned.slice(),extra:{},fields:{},sns:emptySns()},setupDone:false,
     stories:[],posts:[],inbox:[],conn:{blog:true,insta:true,shorts:true,threads:true,facebook:false,place:false},
     pcOn:true,shortsAudited:false,placeStats:[],topics:null,qIndex:0};
 }
@@ -99,14 +120,15 @@ function exampleState(){
   s.profile={industry:'cafe',name:'온기카페',area:'성수동',hours:'매일 10:00–21:00 · 브런치 토·일 10:00–14:00',
     menu:[{name:'유자 라떼',price:5800},{name:'아메리카노',price:4500},{name:'브런치 세트',price:13000}],
     strengths:['직접 담근 수제청 (유자·자몽·레몬)','오후 햇살 드는 창가 자리 6석','노트북 하기 좋은 조용한 분위기'],
-    tone:'warm',banned:['최고','1등','무조건','인생 카페'],extra:{seats:'1층 18석',parkingInfo:'주차 불가, 성수역 3번 출구 도보 5분'},fields:{cafeType:['디저트·베이커리','커피 전문'],space:['창가 자리','콘센트']}};
+    tone:'warm',banned:['최고','1등','무조건','인생 카페'],extra:{seats:'1층 18석',parkingInfo:'주차 불가, 성수역 3번 출구 도보 5분'},fields:{cafeType:['디저트·베이커리','커피 전문'],space:['창가 자리','콘센트']},sns:emptySns()};
   s.setupDone=true;
   s.stories=[{q:'창가 자리는 왜 따로 두셨어요?',a:'오후 3시쯤 햇살이 제일 예뻐서, 혼자 오시는 손님 자리로 비워둬요.',at:Date.now()-5*DAY}];
   return s;
 }
 let S=exampleState();
 let M={};                 // 자료: id -> material
-let UI={view:'home',flow:null,filter:'전체',modal:null,qDraft:'',storeEdit:null,inboxOpen:false};
+let UI={view:'home',flow:null,filter:'전체',modal:null,qDraft:'',qAsk:null,storeEdit:null,inboxOpen:false,authErr:''};
+let AUTH={user:null}; // {email,name} | null — 로컬 시연용 (추후 Supabase Auth로 교체)
 let cap={db:null,uid:null,sample:null,dict:null};
 let dictTarget=null;
 let queueRunning=false;
@@ -126,26 +148,55 @@ function toast(msg){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTi
 /* =========================================================
    저장 (상태 1개 문서 + 자료 1개당 1문서)
    ========================================================= */
-let saveT=null,saving=false,pendingSave=false;
+let saveT=null,saving=false,pendingSave=false,USE_RDS=false;
 const matWriting=new Set(), matPending=new Set();
+const AUTH_KEY='gk2-accounts', SESSION_KEY='gk2-session';
+async function apiFetch(path,opts){
+  const res=await fetch(path,Object.assign({credentials:'include',headers:{'content-type':'application/json'}},opts||{}));
+  let data=null;try{data=await res.json();}catch(_){data=null;}
+  return {res,data};
+}
 function persist(){clearTimeout(saveT);saveT=setTimeout(saveState,600);try{localStorage.setItem('gk2-state',JSON.stringify(S));}catch(_){}}
 async function saveState(){
-  if(!cap.db||!cap.uid)return;
+  try{localStorage.setItem('gk2-state',JSON.stringify(S));}catch(_){}
+  if(!USE_RDS||!AUTH.user){if(cap.db&&cap.uid){/* reserved */}return;}
   if(saving){pendingSave=true;return;}
   saving=true;
+  try{await apiFetch('/api/shop/state',{method:'PUT',body:JSON.stringify({state:S})});}catch(_){}
   saving=false;if(pendingSave){pendingSave=false;saveState();}
 }
 async function saveMat(m){
   try{const all=JSON.parse(localStorage.getItem('gk2-mats')||'{}');all[m.id]=m;localStorage.setItem('gk2-mats',JSON.stringify(all));}catch(_){}
-  if(!cap.db||!cap.uid)return;
+  if(!USE_RDS||!AUTH.user)return;
   if(matWriting.has(m.id)){matPending.add(m.id);return;}
   matWriting.add(m.id);
+  try{await apiFetch('/api/shop/materials',{method:'PUT',body:JSON.stringify({id:m.id,data:m})});}catch(_){}
   matWriting.delete(m.id);
   if(matPending.has(m.id)){matPending.delete(m.id);if(M[m.id])saveMat(M[m.id]);}
 }
 async function deleteMat(id){
   delete M[id];
   try{const all=JSON.parse(localStorage.getItem('gk2-mats')||'{}');delete all[id];localStorage.setItem('gk2-mats',JSON.stringify(all));}catch(_){}
+  if(USE_RDS&&AUTH.user){try{await apiFetch('/api/shop/materials?id='+encodeURIComponent(id),{method:'DELETE'});}catch(_){}}
+}
+async function loadCloudData(){
+  if(!USE_RDS||!AUTH.user)return;
+  try{
+    const st=await apiFetch('/api/shop/state');
+    if(st.data&&st.data.ok&&st.data.state&&st.data.state.profile){S=Object.assign(baseState(),st.data.state);fixState();}
+  }catch(_){}
+  try{
+    const mats=await apiFetch('/api/shop/materials');
+    if(mats.data&&mats.data.ok&&mats.data.materials){M=mats.data.materials;}
+  }catch(_){}
+}
+async function probeRdsAuth(){
+  try{
+    const {res,data}=await apiFetch('/api/auth/me');
+    USE_RDS=!!(data&&data.db);
+    if(data&&data.ok&&data.user){AUTH.user={email:data.user.email,name:data.user.name||''};try{localStorage.setItem(SESSION_KEY,JSON.stringify(AUTH.user));}catch(_){}}
+    return USE_RDS;
+  }catch(_){USE_RDS=false;return false;}
 }
 
 /* =========================================================
@@ -447,13 +498,14 @@ function profileText(){
   const p=S.profile,T=IND[p.industry],f=p.fields||{};
   const req=T.req.map(r=>{const v=f[r.k];const t=Array.isArray(v)?v.join(', '):v;return t?`${r.label}: ${t}`:'';}).filter(Boolean);
   const ex=(T.extra||[]).map(([k,l])=>p.extra&&p.extra[k]?`${l}: ${p.extra[k]}`:'').filter(Boolean);
+  const sns=SNS_FIELDS.map(x=>{const v=p.sns&&p.sns[x.k];return v&&String(v).trim()?`${x.label}: ${String(v).trim()}`:'';}).filter(Boolean);
   return [`업종: ${T.label}`,`가게 이름: ${p.name||'(미입력)'}`,`동네: ${p.area||'(미입력)'}`,`영업시간: ${p.hours||'(미입력 — 시간 언급 금지)'}`].concat(req).concat([
     `${T.item}과 가격(이 값만 사용): ${p.menu.length?p.menu.map(m=>m.name+' '+won(m.price)).join(', '):'(없음 — 가격 언급 금지)'}`,
-    `차별점: ${p.strengths.join(' / ')||'(없음)'}`]).concat(ex).concat([
+    `차별점: ${p.strengths.join(' / ')||'(없음)'}`]).concat(ex).concat(sns.length?[`SNS: ${sns.join(' · ')}`]:[]).concat([
     `말투: ${{warm:'다정한 존댓말',clean:'깔끔하고 단정한 존댓말',fun:'유쾌하고 가벼운 존댓말'}[p.tone]}`,`쓰지 말 것: ${p.banned.join(', ')}`]).join('\n');
 }
 function matsText(ids){return ids.map(id=>M[id]).filter(Boolean).map(m=>`- [${m.kind}] ${m.summary}${m.tags.length?' ('+m.tags.join(', ')+')':''}${m.text?' 원문: '+m.text.slice(0,300):''}`).join('\n')||'(없음)';}
-function seasonHint(){const mo=new Date().getMonth()+1;if(S.profile.industry==='academy')return({1:'겨울방학 특강',2:'신학기 준비',3:'신학기 적응',4:'중간고사 대비',5:'중간고사 이후',6:'기말고사 대비',7:'여름방학 특강',8:'2학기 준비',9:'2학기 적응',10:'중간고사 대비',11:'수능·기말, 겨울방학 특강 모집',12:'겨울방학 특강'})[mo];return({1:'새해',2:'졸업·발렌타인',3:'봄 시작',4:'봄나들이',5:'가정의 달',6:'초여름',7:'한여름',8:'휴가철',9:'초가을',10:'가을',11:'초겨울',12:'연말 모임'})[mo];}
+function seasonHint(){const mo=new Date().getMonth()+1;if(S.profile.industry==='academy')return({1:'겨울방학 특강',2:'신학기 준비',3:'신학기 적응',4:'중간고사 대비',5:'중간고사 이후',6:'기말고사 대비',7:'여름방학 특강',8:'2학기 준비',9:'2학기 적응',10:'중간고사 대비',11:'수능·기말, 겨울방학 특강 모집',12:'겨울방학 특강'})[mo];if(S.profile.industry==='hospital')return({1:'환절기 호흡기·면역 관리',2:'환절기 알레르기·피부 관리',3:'봄철 알레르기·미세먼지',4:'봄철 관절·야외활동 부상',5:'가정의 달 건강검진',6:'초여름 냉방병·식중독 주의',7:'여름철 피부·탈수 관리',8:'휴가철 응급·여행 전 상담',9:'환절기 감기·독감 대비',10:'가을 환절기 호흡기 관리',11:'독감·폐렴 예방접종 시즌',12:'연말 건강검진·예방접종'})[mo];return({1:'새해',2:'졸업·발렌타인',3:'봄 시작',4:'봄나들이',5:'가정의 달',6:'초여름',7:'한여름',8:'휴가철',9:'초가을',10:'가을',11:'초겨울',12:'연말 모임'})[mo];}
 async function askJson(prompt,opts){
   if(!cap.sample)throw{code:'no_sample'};
   try{return await cap.sample.json(prompt,Object.assign({modelTier:'default'},opts||{}));}
@@ -555,7 +607,7 @@ function fallbackDrafts(f){
 /* =========================================================
    아이콘 · 공용 조각
    ========================================================= */
-const I={home:'<path d="M4 11l8-6 8 6v9H4z"/>',plus:'<path d="M12 5v14M5 12h14"/>',store:'<path d="M4 9l1.5-4h13L20 9M4 9v11h16V9M4 9h16M10 20v-5h4v5"/>',chart:'<path d="M5 20V10M12 20V4M19 20v-7"/>',box:'<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/>',mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',cam:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',check:'<path d="M5 12l5 5 9-10"/>',back:'<path d="M15 6l-6 6 6 6"/>',copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',trash:'<path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/>',edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',spark:'<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6"/>',pin:'<path d="M9 4h6l-1 6 3 3H7l3-3zM12 13v7"/>',ban:'<circle cx="12" cy="12" r="8"/><path d="M6.5 6.5l11 11"/>',text:'<path d="M5 6h14M5 11h14M5 16h9"/>',x:'<path d="M6 6l12 12M18 6L6 18"/>'};
+const I={home:'<path d="M4 11l8-6 8 6v9H4z"/>',plus:'<path d="M12 5v14M5 12h14"/>',store:'<path d="M4 9l1.5-4h13L20 9M4 9v11h16V9M4 9h16M10 20v-5h4v5"/>',chart:'<path d="M5 20V10M12 20V4M19 20v-7"/>',box:'<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/>',mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',cam:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',check:'<path d="M5 12l5 5 9-10"/>',back:'<path d="M15 6l-6 6 6 6"/>',copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',trash:'<path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/>',edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',spark:'<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6"/>',pin:'<path d="M9 4h6l-1 6 3 3H7l3-3zM12 13v7"/>',ban:'<circle cx="12" cy="12" r="8"/><path d="M6.5 6.5l11 11"/>',text:'<path d="M5 6h14M5 11h14M5 16h9"/>',x:'<path d="M6 6l12 12M18 6L6 18"/>',user:'<circle cx="12" cy="8" r="3.5"/><path d="M5 19c1.5-3.5 4-5 7-5s5.5 1.5 7 5"/>'};
 const ic=(n,s=20)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[n]}</svg>`;
 const chMark=(c,s=30)=>`<span style="width:${s}px;height:${s}px;border-radius:9px;background:${c.color};color:#fff;font-size:${Math.round(s*.42)}px;font-weight:800;display:inline-grid;place-items:center;flex:none">${c.mark}</span>`;
 const matThumb=(m,cls='')=>m&&m.thumb?`<img src="${m.thumb}" alt="${esc(m.summary)}" class="${cls}">`:`<span class="ph">${ic(m&&m.src==='text'?'text':'cam',20)}</span>`;
@@ -569,12 +621,70 @@ function renderNav(){
   const pend=Object.values(M).filter(m=>m.status==='pending').length, inbox=S.inbox.length;
   const waiting=S.posts.filter(p=>Object.values(p.status).some(v=>v.state==='wait'||v.state==='manual')).length;
   const badge=id=>id==='home'&&inbox?inbox:id==='library'&&pend?pend:id==='status'&&waiting?waiting:0;
+  const inStore=!!(AUTH.user||(S.setupDone&&!S.example));
+  const authBlock=inStore
+    ?`<div class="stack" style="gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">${AUTH.user?`<div class="row" style="gap:8px;align-items:flex-start">${ic('user',18)}<div class="stack" style="gap:0;flex:1;min-width:0"><b class="small" style="overflow:hidden;text-overflow:ellipsis">${esc(AUTH.user.name||'사장님')}</b><span class="xs muted" style="overflow:hidden;text-overflow:ellipsis">${esc(AUTH.user.email)}</span></div></div>`:''}<button class="btn sm ghost block" data-act="logout">로그아웃</button></div>`
+    :`<div class="stack" style="gap:6px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)"><button class="btn sm dark block" data-act="nav" data-v="login">${ic('user',14)}로그인</button><button class="btn sm ghost block" data-act="nav" data-v="signup">회원가입</button></div>`;
   $('#sideNav').innerHTML=NAV.map(n=>n.id==='create'
     ?`<button class="nav-btn new" data-act="nav" data-v="create">${ic('plus')}새 글 만들기</button>`
-    :`<button class="nav-btn" data-act="nav" data-v="${n.id}" ${UI.view===n.id?'aria-current="page"':''}>${ic(n.icon)}${n.label}${badge(n.id)?`<span class="badge">${badge(n.id)}</span>`:''}</button>`).join('');
+    :`<button class="nav-btn" data-act="nav" data-v="${n.id}" ${UI.view===n.id?'aria-current="page"':''}>${ic(n.icon)}${n.label}${badge(n.id)?`<span class="badge">${badge(n.id)}</span>`:''}</button>`).join('')+authBlock;
   $('#bottomNav').innerHTML=BNAV.map(id=>NAV.find(n=>n.id===id)).map(n=>n.id==='create'
     ?`<button class="fab" data-act="nav" data-v="create" aria-label="새 글 만들기">${ic('plus',26)}</button>`
     :`<button data-act="nav" data-v="${n.id}" ${UI.view===n.id?'aria-current="page"':''}>${ic(n.icon,22)}${n.label}${badge(n.id)?`<span class="badge nb">${badge(n.id)}</span>`:''}</button>`).join('');
+}
+
+/* =========================================================
+   회원가입 · 로그인 (RDS 우선, 없으면 로컬 폴백)
+   ========================================================= */
+function loadAccounts(){try{return JSON.parse(localStorage.getItem(AUTH_KEY)||'[]');}catch(_){return[];}}
+function saveAccounts(list){try{localStorage.setItem(AUTH_KEY,JSON.stringify(list));}catch(_){}}
+function loadSession(){try{const s=JSON.parse(localStorage.getItem(SESSION_KEY)||'null');AUTH.user=s&&s.email?{email:s.email,name:s.name||''}:null;}catch(_){AUTH.user=null;}}
+function saveSession(user){AUTH.user=user;try{if(user)localStorage.setItem(SESSION_KEY,JSON.stringify(user));else localStorage.removeItem(SESSION_KEY);}catch(_){}}
+async function hashPass(pw){
+  try{
+    const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('majungmul:'+pw));
+    return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+  }catch(_){return 'plain:'+pw;}
+}
+function validEmail(e){return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(e||'').trim());}
+async function afterAuth(){
+  UI.authErr=''; S.seenLanding=true;
+  if(USE_RDS) await loadCloudData();
+  persist();
+  if(S.setupDone&&!S.example) UI.view='home';
+  else{ UI.indPicked=false; UI.setupStep=1; UI.view='setup'; }
+  render(); window.scrollTo(0,0);
+}
+function viewAuthShell(title,sub,body,footer){
+  const logoSvg=(document.querySelector('.brand .logo')||{innerHTML:''}).innerHTML;
+  return `<div class="ld" style="min-height:100vh"><div class="ld-top"><div class="in"><button class="brand-link" data-act="goLanding" style="border:0;background:transparent;display:flex;align-items:center;gap:10px"><span class="logo" style="width:36px;height:36px;border-radius:12px;display:grid;place-items:center;background:#0B6E8A">${logoSvg}</span><b style="font-size:20px;font-weight:900;letter-spacing:-0.04em">마중물</b></button>
+    <div class="row" style="margin-left:auto;justify-content:flex-end"><button class="btn ghost" data-act="nav" data-v="login">로그인</button><button class="btn dark" data-act="nav" data-v="signup">회원가입</button></div></div></div>
+    <div class="stack" style="max-width:440px;width:100%;margin:40px auto;padding:0 20px 60px;gap:16px">
+      <div class="stack" style="gap:6px"><h1>${title}</h1><p class="muted">${sub}</p></div>
+      <div class="card stack">${body}</div>
+      ${footer||''}
+      <p class="xs muted" style="text-align:center">${USE_RDS?'계정이 RDS에 저장돼요.':'서버 DB 연결 전 · 이 브라우저에만 저장돼요.'}</p>
+    </div></div>`;
+}
+function viewLogin(){
+  const err=UI.authErr?`<div class="banner warn"><span>${esc(UI.authErr)}</span></div>`:'';
+  return viewAuthShell('로그인','가입한 이메일로 들어와 주세요.',
+    `${err}
+    <div class="stack" style="gap:6px"><label class="lbl" for="authEmail">이메일</label><input id="authEmail" class="inp" type="email" autocomplete="username" placeholder="예) boss@store.com"></div>
+    <div class="stack" style="gap:6px"><label class="lbl" for="authPass">비밀번호</label><input id="authPass" class="inp" type="password" autocomplete="current-password" placeholder="비밀번호"></div>
+    <button class="btn primary lg block" data-act="doLogin">로그인</button>`,
+    `<p class="small muted" style="text-align:center">아직 계정이 없나요? <button class="btn sm ghost" data-act="nav" data-v="signup">회원가입</button></p>`);
+}
+function viewSignup(){
+  const err=UI.authErr?`<div class="banner warn"><span>${esc(UI.authErr)}</span></div>`:'';
+  return viewAuthShell('회원가입','이메일과 비밀번호로 사장님 계정을 만들어요.',
+    `${err}
+    <div class="stack" style="gap:6px"><label class="lbl" for="authName">이름·호칭 <span class="muted xs">(선택)</span></label><input id="authName" class="inp" autocomplete="name" placeholder="예) 온기카페 사장님"></div>
+    <div class="stack" style="gap:6px"><label class="lbl" for="authEmail">이메일</label><input id="authEmail" class="inp" type="email" autocomplete="username" placeholder="예) boss@store.com"></div>
+    <div class="stack" style="gap:6px"><label class="lbl" for="authPass">비밀번호</label><input id="authPass" class="inp" type="password" autocomplete="new-password" placeholder="8자 이상"></div>
+    <div class="stack" style="gap:6px"><label class="lbl" for="authPass2">비밀번호 확인</label><input id="authPass2" class="inp" type="password" autocomplete="new-password" placeholder="한 번 더"></div>
+    <button class="btn primary lg block" data-act="doSignup">가입하고 시작하기</button>`,
+    `<p class="small muted" style="text-align:center">이미 계정이 있나요? <button class="btn sm ghost" data-act="nav" data-v="login">로그인</button></p>`);
 }
 
 /* =========================================================
@@ -589,6 +699,7 @@ function curTopics(){
   return{list:base,ai:false};
 }
 function curQuestion(){const qs=IND[S.profile.industry].questions;return qs[(S.qIndex||0)%qs.length];}
+function activeQuestion(){const q=(UI.qAsk!=null?UI.qAsk:curQuestion()).trim();return q;}
 function weekPosts(){const now=new Date();const mon=new Date(now);mon.setHours(0,0,0,0);mon.setDate(now.getDate()-((now.getDay()+6)%7));return S.posts.filter(p=>p.when>=mon.getTime());}
 function inboxCard(it){
   const m=M[it.mat];const th=m&&m.thumb?`<img src="${m.thumb}" alt="" style="width:48px;height:48px;border-radius:10px;object-fit:cover;flex:none">`:'';
@@ -638,8 +749,9 @@ function viewHome(){
   <div class="grid2">
     <section class="card stack">
       <div class="row"><span class="chip ink">오늘의 질문</span><span class="muted xs">30초 · 답이 ‘가게 이야기’에 쌓여 글에 들어가요</span></div>
-      <h2>${esc(curQuestion())}</h2>
-      <label class="sr" for="qAns">답변</label>
+      <label class="lbl" for="qAsk">질문 <span class="muted xs">제안 질문을 고치거나 직접 적어도 돼요</span></label>
+      <textarea id="qAsk" class="inp" rows="2" placeholder="예) 단골손님이 가장 자주 시키는 메뉴는요?">${esc(UI.qAsk!=null?UI.qAsk:curQuestion())}</textarea>
+      <label class="lbl" for="qAns">답변</label>
       <textarea id="qAns" class="inp" rows="3" placeholder="말하듯 짧게 적어주세요">${esc(UI.qDraft)}</textarea>
       <div class="row">${cap.dict?`<button class="btn sm mic ${dictTarget==='qAns'?'on':''}" data-act="dict" data-t="qAns">${ic('mic',16)}${dictTarget==='qAns'?'듣는 중… 누르면 멈춤':'말로 답하기'}</button>`:''}<button class="btn sm ghost" data-act="nextQ">다른 질문</button><button class="btn sm dark" data-act="saveQ" style="margin-left:auto">저장</button></div>
     </section>
@@ -680,6 +792,7 @@ function viewLibrary(){
           ${m.archived?`<button class="btn" data-act="unarchive" data-v="${m.id}">꺼내기</button>`:`
           <button class="btn" data-act="pin" data-v="${m.id}" aria-pressed="${m.pinned}">${ic('pin',14)}${m.pinned?'고정 해제':'자주 써줘'}</button>
           <button class="btn" data-act="excl" data-v="${m.id}" aria-pressed="${m.excluded}">${ic('ban',14)}${m.excluded?'다시 쓰기':'쓰지 마'}</button>`}
+          ${m.status!=='pending'?`<button class="btn" data-act="editMat" data-v="${m.id}">${ic('edit',14)}수정</button>`:''}
           <button class="btn ghost" data-act="delMat" data-v="${m.id}" aria-label="지우기" style="flex:none;width:36px">${ic('trash',14)}</button>
         </div>
       </div>
@@ -721,9 +834,9 @@ function viewSetup(){
     <div class="grid3">${IND_ORDER.map(k=>`<button class="card stack" style="text-align:left;gap:4px;${(UI.indPicked||S.setupDone)&&p.industry===k?'border:2px solid var(--accent);background:var(--accent-soft)':''}" data-act="setInd" data-v="${k}" aria-pressed="${p.industry===k}"><b style="font-size:17px">${IND[k].label}</b><span class="small muted">${IND[k].desc}</span></button>`).join('')}</div>`;
   if(st===2)body=`<h1>기본 정보</h1><p class="muted">손님이 찾아올 때 꼭 필요한 것만 받아요.</p>
     <div class="card stack"><div class="grid2" style="gap:12px">
-      <div class="stack" style="gap:6px"><label class="lbl" for="pName">${p.industry==='academy'?'학원 이름':'가게 이름'}</label><input id="pName" class="inp" data-field="name" value="${esc(p.name)}"></div>
+      <div class="stack" style="gap:6px"><label class="lbl" for="pName">${p.industry==='academy'?'학원 이름':p.industry==='hospital'?'병원 이름':'가게 이름'}</label><input id="pName" class="inp" data-field="name" value="${esc(p.name)}"></div>
       <div class="stack" style="gap:6px"><label class="lbl" for="pArea">동네</label><input id="pArea" class="inp" data-field="area" value="${esc(p.area)}" placeholder="예) 성수동"></div>
-      <div class="stack" style="gap:6px"><label class="lbl" for="pHours">${p.industry==='academy'?'운영 시간':'영업시간'}</label><input id="pHours" class="inp" data-field="hours" value="${esc(p.hours)}" placeholder="예) 매일 10:00–21:00, 월요일 휴무"></div>
+      <div class="stack" style="gap:6px"><label class="lbl" for="pHours">${p.industry==='academy'?'운영 시간':p.industry==='hospital'?'진료 시간':'영업시간'}</label><input id="pHours" class="inp" data-field="hours" value="${esc(p.hours)}" placeholder="${p.industry==='hospital'?'예) 평일 09:00–18:00, 토 09:00–13:00, 일요일 휴진':'예) 매일 10:00–21:00, 월요일 휴무'}"></div>
       <div class="stack" style="gap:6px"><span class="lbl">글 말투</span><div class="row">${[['warm','다정하게'],['clean','깔끔하게'],['fun','유쾌하게']].map(([k,l])=>`<button class="tab" aria-pressed="${p.tone===k}" aria-selected="${p.tone===k}" data-act="tone" data-v="${k}">${l}</button>`).join('')}</div></div>
     </div></div>`;
   if(st===3)body=`<h1>${T.label}라면 꼭 필요한 정보</h1><p class="muted">눌러서 고르기만 하면 돼요. 손님이 가장 많이 묻는 것들이에요.</p>
@@ -771,7 +884,16 @@ function viewStore(){
   <section class="card stack"><div class="row between"><h2>가게 이야기</h2><span class="muted small">오늘의 질문·사진 질문 답변</span></div>
     ${S.stories.length?S.stories.slice().reverse().map((s,ri)=>{const i=S.stories.length-1-ri;return `<div class="list-row" style="align-items:flex-start"><div class="stack" style="gap:2px;flex:1"><span class="muted small">Q. ${esc(s.q)}</span><span>${esc(s.a)}</span></div><button class="btn sm ghost" data-act="delStory" data-i="${i}" aria-label="지우기">${ic('trash',16)}</button></div>`;}).join(''):'<p class="muted small">오늘 화면의 질문에 답해 보세요.</p>'}
   </section>
+  ${snsCard()}
   ${channelsCard()}`;
+}
+function snsCard(){
+  const sns=S.profile.sns||(S.profile.sns=emptySns());
+  const filled=SNS_FIELDS.filter(x=>(sns[x.k]||'').trim()).length;
+  return `<section class="card stack"><div class="row between"><h2>SNS</h2><span class="chip">${filled}/${SNS_FIELDS.length}</span></div>
+    <p class="small muted">손님에게 알려줄 계정·주소예요. 비워 두면 글에 넣지 않아요. 채널 연결과 별개입니다.</p>
+    <div class="grid2" style="gap:12px">${SNS_FIELDS.map(x=>`<div class="stack" style="gap:4px"><label class="lbl" for="sns_${x.k}">${x.label}</label><input id="sns_${x.k}" class="inp" data-sns="${x.k}" value="${esc(sns[x.k]||'')}" placeholder="${esc(x.ph)}" inputmode="url" autocomplete="url"></div>`).join('')}</div>
+  </section>`;
 }
 function channelsCard(){
   return `<section class="card stack"><div class="row between"><h2>채널 연결</h2><span class="chip warn">시연 모드</span></div>
@@ -1059,7 +1181,13 @@ function viewLanding(){
   return `<div class="ld">
   <div class="ld-strip">지금 보시는 건 시연 버전이에요 · 글은 실제 AI가 쓰고, 채널 발행은 흉내만 내요</div>
   <div class="ld-top"><div class="in"><button class="brand-link" data-act="goLanding" style="border:0;background:transparent;display:flex;align-items:center;gap:10px"><span class="logo" style="width:36px;height:36px;border-radius:12px;display:grid;place-items:center;background:#0B6E8A">${logoSvg}</span><b style="font-size:20px;font-weight:900;letter-spacing:-0.04em">마중물</b></button>
-    <div class="row"><button class="btn ghost hide-m" data-act="ldScroll" data-v="how">사용법</button><button class="btn ghost hide-m" data-act="ldScroll" data-v="why">차이점</button><button class="btn ghost hide-m" data-act="ldScroll" data-v="faq">자주 묻는 질문</button><button class="bt pri" style="height:44px;padding:0 18px;font-size:14.5px" data-act="ldStart">${startTxt}</button></div></div></div>
+    <div class="row" style="margin-left:auto;justify-content:flex-end;flex-wrap:wrap">
+      <button class="btn ghost hide-m" data-act="ldScroll" data-v="how">사용법</button><button class="btn ghost hide-m" data-act="ldScroll" data-v="why">차이점</button><button class="btn ghost hide-m" data-act="ldScroll" data-v="faq">자주 묻는 질문</button>
+      <button class="bt pri" style="height:44px;padding:0 18px;font-size:14.5px" data-act="ldStart">${startTxt}</button>
+      ${(AUTH.user||inApp)
+        ?`${AUTH.user?`<span class="small muted hide-m">${esc(AUTH.user.name||AUTH.user.email)}</span>`:''}<button class="btn ghost" data-act="logout">로그아웃</button>`
+        :`<button class="btn ghost" data-act="nav" data-v="login">로그인</button><button class="btn dark" data-act="nav" data-v="signup">회원가입</button>`}
+    </div></div></div>
 
   <section class="ld-hero">
     <div class="blob b1"></div><div class="blob b2"></div><div class="rings" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -1196,12 +1324,53 @@ function initLanding(){
 function render(){
   renderNav();
   const v=UI.view;
-  document.body.classList.toggle('landing',v==='landing');
-  $('#main').innerHTML=v==='landing'?viewLanding():v==='setup'?viewSetup():v==='home'?viewHome():v==='library'?viewLibrary():v==='create'?viewCreate():v==='status'?viewStatus():viewStore();
+  const isMarketing=v==='landing'||v==='login'||v==='signup';
+  document.body.classList.toggle('landing',isMarketing);
+  $('#main').innerHTML=v==='landing'?viewLanding():v==='login'?viewLogin():v==='signup'?viewSignup():v==='setup'?viewSetup():v==='home'?viewHome():v==='library'?viewLibrary():v==='create'?viewCreate():v==='status'?viewStatus():viewStore();
   if(v==='landing') initLanding(); else stopLanding();
-  $('#modal').innerHTML=UI.modal==='picker'?pickerModal():UI.modal==='text'?textModal():UI.modal==='post'?postModal():'';
+  if(v==='login'||v==='signup') setTimeout(()=>{const el=$('#authEmail');el&&el.focus();},0);
+  $('#modal').innerHTML=UI.modal==='picker'?pickerModal():UI.modal==='text'?textModal():UI.modal==='post'?postModal():UI.modal==='editMat'?editMatModal():'';
 }
 function textModal(){return `<div class="modal-bg" data-act="closeModal"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="tmh" data-stop="1"><div class="row between"><h2 id="tmh">글·후기 붙여넣기</h2><button class="btn sm ghost" data-act="closeModal" aria-label="닫기">${ic('x',18)}</button></div><p class="small muted">예전에 쓴 블로그 글, 손님 후기, 공지 문구를 붙여넣으면 사실과 말투를 정리해 자료로 써요. 손님 실명·연락처는 지워주세요.</p><label class="sr" for="tmText">붙여넣을 글</label><textarea id="tmText" class="inp" rows="8"></textarea><div class="row" style="justify-content:flex-end"><button class="btn primary" data-act="saveText">자료함에 넣기</button></div></div></div>`;}
+function snapEditDraft(){
+  const m=M[UI.editId], prev=(UI.editDraft||{}).text, from=$('#emText');
+  return {
+    summary:($('#emSummary')||{}).value||'',
+    tags:($('#emTags')||{}).value||'',
+    kind:($('#emKind')||{}).value||'',
+    ends:($('#emEnds')||{}).value||'',
+    text:from?from.value:(prev!=null?prev:(m&&m.text)||'')
+  };
+}
+function editMatNeedsText(kind){return kind==='글'||kind==='후기';}
+function editMatModal(){
+  const m=M[UI.editId]; if(!m)return '';
+  const d=UI.editDraft||{};
+  const kind=d.kind!=null&&d.kind!==''?d.kind:(m.kind||KINDS[0]);
+  const summary=d.summary!=null?d.summary:(m.summary||'');
+  const tags=d.tags!=null?d.tags:(m.tags||[]).join(', ');
+  const ends=d.ends!=null?d.ends:(m.ends||'');
+  const text=d.text!=null?d.text:(m.text||'');
+  const menus=UI.editMenus||(m.menu||[]).slice();
+  const menuOpts=S.profile.menu||[];
+  const needText=editMatNeedsText(kind);
+  return `<div class="modal-bg" data-act="closeModal"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="emh" data-stop="1">
+    <div class="row between"><h2 id="emh">자료 수정</h2><button class="btn sm ghost" data-act="closeModal" aria-label="닫기">${ic('x',18)}</button></div>
+    <p class="small muted">종류·설명·연결된 메뉴를 고치면 다음 글부터 반영돼요. 사진 자체는 바꾸지 않아요.</p>
+    ${m.thumb?`<div class="row" style="justify-content:center"><img src="${m.thumb}" alt="" style="max-width:100%;max-height:160px;border-radius:12px;object-fit:contain;background:#fff"></div>`:''}
+    <div class="stack" style="gap:12px">
+      <div class="stack" style="gap:6px"><label class="lbl" for="emKind">종류</label><select id="emKind" class="inp">${KINDS.map(k=>`<option value="${k}" ${kind===k?'selected':''}>${k}</option>`).join('')}</select></div>
+      <div class="stack" style="gap:6px"><label class="lbl" for="emSummary">설명</label><input id="emSummary" class="inp" maxlength="80" value="${esc(summary)}" placeholder="40자 안팎으로 무엇이 보이는지"></div>
+      <div class="stack" style="gap:6px"><label class="lbl" for="emTags">태그 <span class="muted xs">쉼표로 구분 · 최대 6개</span></label><input id="emTags" class="inp" value="${esc(tags)}" placeholder="예: 시그니처, 점심, 테이크아웃"></div>
+      <div class="stack" style="gap:6px"><span class="lbl">연결된 ${IND[S.profile.industry].item||'메뉴'}</span>
+        ${menuOpts.length?`<div class="row" style="gap:6px">${menuOpts.map(x=>{const on=menus.includes(x.name);return `<button type="button" class="tab" style="height:40px" aria-pressed="${on}" data-act="editMatMenu" data-v="${esc(x.name)}">${esc(x.name)}</button>`;}).join('')}</div>`:`<p class="small muted">우리 가게에 등록된 메뉴가 없어요. [우리 가게]에서 먼저 추가해 주세요.</p>`}
+      </div>
+      <div class="stack" style="gap:6px"><label class="lbl" for="emEnds">이벤트 끝나는 날 <span class="muted xs">없으면 비워두세요</span></label><input id="emEnds" class="inp" type="date" value="${esc(ends)}"></div>
+      ${needText?`<div class="stack" style="gap:6px"><label class="lbl" for="emText">내용 <span class="chip warn">필수</span></label><textarea id="emText" class="inp" rows="6" placeholder="${kind==='후기'?'손님 후기·리뷰 내용을 적어주세요':'글·공지·블로그 내용을 적어주세요'}" required>${esc(text)}</textarea><span class="xs muted">${kind} 종류는 내용을 꼭 넣어야 저장돼요.</span></div>`:''}
+    </div>
+    <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn ghost" data-act="closeModal">취소</button><button class="btn primary" data-act="saveEditMat">저장</button></div>
+  </div></div>`;
+}
 
 /* =========================================================
    이벤트
@@ -1209,9 +1378,11 @@ function textModal(){return `<div class="modal-bg" data-act="closeModal"><div cl
 function syncInputs(){const f=UI.flow;if(!f)return;const t=$('#fTopic'),n=$('#fNote');if(t)f.topic=t.value;if(n)f.note=n.value;}
 document.addEventListener('input',e=>{
   const el=e.target;
+  if(el.id==='qAsk'){UI.qAsk=el.value;return;}
   if(el.id==='qAns'){UI.qDraft=el.value;return;}
   if(el.dataset.field){const k=el.dataset.field;S.profile[k]=el.value;if(k==='industry'){S.profile.banned=Array.from(new Set(IND[el.value].banned.concat((S.profile.banned||[]).filter(b=>!Object.values(IND).some(t=>t.banned.includes(b))))));S.topics=null;render();}S.example=false;persist();return;}
   if(el.dataset.extra){S.profile.extra=S.profile.extra||{};S.profile.extra[el.dataset.extra]=el.value;persist();return;}
+  if(el.dataset.sns){S.profile.sns=S.profile.sns||emptySns();S.profile.sns[el.dataset.sns]=el.value;S.example=false;persist();return;}
   if(el.dataset.draft&&UI.flow){const f=UI.flow;f.drafts[f.tab][el.dataset.draft]=el.value;clearTimeout(UI.rvT);UI.rvT=setTimeout(()=>{const pos=el.selectionStart,id=el.id;render();const n=document.getElementById(id);if(n){n.focus();try{n.setSelectionRange(pos,pos);}catch(_){}}},700);return;}
   if(el.id==='fWhyD'&&UI.flow){UI.flow.whyDetail=el.value;return;}
   if(el.dataset.pq!=null&&UI.flow){UI.flow.answers=UI.flow.answers||{};UI.flow.answers[el.dataset.pq]=el.value;return;}
@@ -1222,6 +1393,7 @@ document.addEventListener('change',e=>{
   if(el.dataset.sel){toggleSel(el.dataset.sel);}
   if(el.dataset.mr&&UI.menuReview){UI.menuReview[Number(el.dataset.mr)].ok=el.checked;}
   if(el.dataset.kind&&M[el.dataset.kind]){const m=M[el.dataset.kind];m.kind=el.value;m.status='ready';m.summary=m.summary==='정리 전 자료 · 종류를 골라주세요'?el.value+' 자료':m.summary;saveMat(m);render();}
+  if(el.id==='emKind'&&UI.modal==='editMat'){UI.editDraft=snapEditDraft();UI.editDraft.kind=el.value;render();setTimeout(()=>{const t=$('#emText');if(t)t.focus();},0);}
 });
 function toggleSel(c){const f=UI.flow;if(!f)return;const i=f.selected.indexOf(c);if(i>=0)f.selected.splice(i,1);else{if(paceBlocked(c,f.whenMode==='now'?Date.now():f.when)){toast(`${CHMAP[c].name}은 그날 이미 올렸어요. ‘하루 뒤’로 바꾸면 넣을 수 있어요`);render();return;}f.selected.push(c);}if(c==='place'&&f.selected.includes('place')&&!f.selected.includes('blog'))toast('플레이스 소식은 블로그 글이 있어야 떠요');render();}
 function setPhotoFromMats(f){const p=mainPhoto(f.mats);f.photo=p?p.thumb:null;f.photoMat=p?p.id:null;}
@@ -1232,14 +1404,61 @@ document.addEventListener('click',async e=>{
   if(b.tagName==='INPUT')return;
   const a=b.dataset.act,v=b.dataset.v;syncInputs();
   switch(a){
-    case 'nav': if(v==='create'&&(!UI.flow||UI.flow.stage==='done'))UI.flow=newFlow(''); UI.view=v; UI.modal=null; render(); window.scrollTo(0,0); break;
+    case 'nav': if(v==='create'&&(!UI.flow||UI.flow.stage==='done'))UI.flow=newFlow(''); UI.view=v; UI.modal=null; UI.authErr=''; render(); window.scrollTo(0,0); break;
+    case 'doLogin': {
+      const email=((($('#authEmail')||{}).value)||'').trim().toLowerCase();
+      const pass=((($('#authPass')||{}).value)||'');
+      if(!validEmail(email)){UI.authErr='이메일 형식을 확인해 주세요';render();break;}
+      if(!pass){UI.authErr='비밀번호를 입력해 주세요';render();break;}
+      b.disabled=true;
+      if(USE_RDS){
+        try{
+          const {res,data}=await apiFetch('/api/auth/login',{method:'POST',body:JSON.stringify({email,password:pass})});
+          if(!res.ok||!data||!data.ok){UI.authErr=(data&&data.error)||'로그인에 실패했어요';b.disabled=false;render();break;}
+          saveSession({email:data.user.email,name:data.user.name||''}); toast(`${data.user.name||'사장님'}, 환영해요`); await afterAuth(); break;
+        }catch(_){UI.authErr='서버에 연결하지 못했어요';b.disabled=false;render();break;}
+      }
+      const hash=await hashPass(pass);
+      const acc=loadAccounts().find(a=>a.email===email&&a.pass===hash);
+      if(!acc){UI.authErr='이메일 또는 비밀번호가 맞지 않아요';b.disabled=false;render();break;}
+      saveSession({email:acc.email,name:acc.name||''}); toast(`${acc.name||'사장님'}, 환영해요`); await afterAuth(); break;
+    }
+    case 'doSignup': {
+      const name=((($('#authName')||{}).value)||'').trim();
+      const email=((($('#authEmail')||{}).value)||'').trim().toLowerCase();
+      const pass=((($('#authPass')||{}).value)||'');
+      const pass2=((($('#authPass2')||{}).value)||'');
+      if(!validEmail(email)){UI.authErr='이메일 형식을 확인해 주세요';render();break;}
+      if(pass.length<8){UI.authErr='비밀번호는 8자 이상으로 해주세요';render();break;}
+      if(pass!==pass2){UI.authErr='비밀번호 확인이 같지 않아요';render();break;}
+      b.disabled=true;
+      if(USE_RDS){
+        try{
+          const {res,data}=await apiFetch('/api/auth/signup',{method:'POST',body:JSON.stringify({email,password:pass,name})});
+          if(!res.ok||!data||!data.ok){UI.authErr=(data&&data.error)||'가입에 실패했어요';b.disabled=false;render();break;}
+          saveSession({email:data.user.email,name:data.user.name||''}); toast('가입했어요. 가게 정보를 채워볼까요?'); await afterAuth(); break;
+        }catch(_){UI.authErr='서버에 연결하지 못했어요';b.disabled=false;render();break;}
+      }
+      const list=loadAccounts();
+      if(list.some(a=>a.email===email)){UI.authErr='이미 가입된 이메일이에요. 로그인해 주세요';b.disabled=false;render();break;}
+      const hash=await hashPass(pass);
+      list.push({email,pass:hash,name,at:Date.now()});
+      saveAccounts(list);
+      saveSession({email,name});
+      toast('가입했어요. 가게 정보를 채워볼까요?');
+      await afterAuth(); break;
+    }
+    case 'logout': {
+      if(USE_RDS){try{await apiFetch('/api/auth/logout',{method:'POST',body:'{}'});}catch(_){}}
+      saveSession(null); UI.view='landing'; UI.landingByUser=true; toast('로그아웃했어요'); render(); window.scrollTo(0,0); break;
+    }
     case 'reset': if(!UI.resetAsk){UI.resetAsk=true;toast('한 번 더 누르면 예시를 지우고 빈 가게로 시작해요');setTimeout(()=>UI.resetAsk=false,4000);break;} { const ind=S.profile.industry; S=baseState(); UI.indPicked=false; S.profile.industry='restaurant'; S.profile.banned=IND[S.profile.industry].banned.slice(); Object.keys(M).filter(id=>M[id].example).forEach(id=>deleteMat(id)); UI.resetAsk=false; UI.setupStep=1; persist(); UI.view='setup'; render(); window.scrollTo(0,0); } break;
     case 'aiTopics': await doTopics(b); break;
     case 'pickTopic': { const t=curTopics().list[Number(b.dataset.i)]; await startFromTopic(t); break; }
     case 'inboxAll': UI.inboxOpen=true; render(); break;
     case 'inYes': case 'inNo': resolveInbox(b.dataset.i,a==='inYes'); break;
-    case 'nextQ': S.qIndex=(S.qIndex||0)+1; UI.qDraft=''; persist(); render(); break;
-    case 'saveQ': { const t=(UI.qDraft||'').trim(); if(!t){toast('답을 먼저 적어주세요');break;} S.stories.push({q:curQuestion(),a:t,at:Date.now()}); S.qIndex=(S.qIndex||0)+1; UI.qDraft=''; S.example=false; persist(); render(); toast('가게 이야기에 저장했어요. 다음 글부터 들어가요'); break; }
+    case 'nextQ': S.qIndex=(S.qIndex||0)+1; UI.qAsk=null; UI.qDraft=''; persist(); render(); setTimeout(()=>{const el=$('#qAsk');el&&el.focus();},0); break;
+    case 'saveQ': { const q=((($('#qAsk')||{}).value)||activeQuestion()).trim(); const t=((UI.qDraft||($('#qAns')||{}).value)||'').trim(); if(!q){toast('질문을 적어주세요'); const qe=$('#qAsk'); qe&&qe.focus(); break;} if(!t){toast('답을 먼저 적어주세요'); const ae=$('#qAns'); ae&&ae.focus(); break;} S.stories.push({q,a:t,at:Date.now()}); S.qIndex=(S.qIndex||0)+1; UI.qAsk=null; UI.qDraft=''; S.example=false; persist(); render(); toast('가게 이야기에 저장했어요. 다음 글부터 들어가요'); break; }
     case 'dict': toggleDict(b.dataset.t); break;
     case 'upload': UI.uploadForPost=false; $('#fileLib').click(); break;
     case 'uploadForPost': UI.uploadForPost=true; $('#fileLib').click(); break;
@@ -1261,8 +1480,11 @@ document.addEventListener('click',async e=>{
     case 'showGuide': S.guideHidden=false; persist(); render(); break;
     case 'textMat': UI.modal='text'; render(); setTimeout(()=>{const t=$('#tmText');t&&t.focus();},0); break;
     case 'saveText': { const t=$('#tmText').value; UI.modal=null; await ingestText(t); toast('자료함에 넣었어요. 정리할게요'); break; }
-    case 'closeModal': UI.modal=null; if(UI.flow&&UI.flow.stage==='input')setPhotoFromMats(UI.flow); render(); break;
+    case 'closeModal': UI.modal=null; UI.editId=null; UI.editMenus=null; UI.editDraft=null; if(UI.flow&&UI.flow.stage==='input')setPhotoFromMats(UI.flow); render(); break;
     case 'filter': UI.filter=v; render(); break;
+    case 'editMat': { const m=M[v]; if(!m||m.status==='pending')break; UI.editId=v; UI.editMenus=(m.menu||[]).slice(); UI.editDraft=null; UI.modal='editMat'; render(); setTimeout(()=>{const el=$('#emSummary');el&&el.focus();},0); break; }
+    case 'editMatMenu': { const a=UI.editMenus||[]; UI.editMenus=a.includes(v)?a.filter(x=>x!==v):a.concat([v]); UI.editDraft=snapEditDraft(); render(); break; }
+    case 'saveEditMat': { const m=M[UI.editId]; if(!m)break; const kind=($('#emKind')||{}).value||m.kind; const summary=((($('#emSummary')||{}).value)||'').trim(); if(!summary){toast('설명을 적어주세요');break;} const body=((($('#emText')||{}).value)||'').trim(); if(editMatNeedsText(kind)&&!body){toast(`${kind} 내용을 적어주세요`); const t=$('#emText'); t&&t.focus(); break;} m.kind=KINDS.includes(kind)?kind:(m.kind||'메뉴'); m.summary=summary.slice(0,80); m.tags=(((($('#emTags')||{}).value)||'').split(/[,，、]/).map(s=>s.trim()).filter(Boolean).slice(0,6)); m.menu=(UI.editMenus||[]).filter(n=>S.profile.menu.some(x=>x.name===n)); const ends=(($('#emEnds')||{}).value)||''; m.ends=ends||null; if(editMatNeedsText(kind))m.text=body.slice(0,3000); else if($('#emText'))m.text=($('#emText').value||'').slice(0,3000); if(m.status==='manual'||m.status==='error')m.status='ready'; saveMat(m); UI.modal=null; UI.editId=null; UI.editMenus=null; UI.editDraft=null; render(); toast('자료를 수정했어요'); break; }
     case 'pin': { const m=M[v]; m.pinned=!m.pinned; if(m.pinned)m.excluded=false; saveMat(m); render(); toast(m.pinned?'이 자료를 먼저 골라요':'고정을 풀었어요'); break; }
     case 'excl': { const m=M[v]; m.excluded=!m.excluded; if(m.excluded)m.pinned=false; saveMat(m); render(); break; }
     case 'unarchive': { const m=M[v]; m.archived=false; m.lastUsed=Date.now(); if(m.ends&&new Date(m.ends).getTime()<Date.now())m.ends=null; saveMat(m); render(); break; }
@@ -1408,22 +1630,34 @@ function onDictFinal(text){
   if(/^pq\d$/.test(dictTarget)&&UI.flow){const i=dictTarget.slice(2);UI.flow.answers=UI.flow.answers||{};UI.flow.answers[i]=((UI.flow.answers[i]||'')+' '+text).trim();const el=document.getElementById(dictTarget);if(el)el.value=UI.flow.answers[i];return;}
   if(dictTarget==='fNote'&&UI.flow){UI.flow.note=((UI.flow.note||'')+' '+text).trim();const el=$('#fNote');if(el)el.value=UI.flow.note;}
 }
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&UI.modal){UI.modal=null;render();}});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&UI.modal){UI.modal=null;UI.editId=null;UI.editMenus=null;UI.editDraft=null;render();return;}
+  if(e.key==='Enter'&&(UI.view==='login'||UI.view==='signup')&&e.target&&['INPUT'].includes(e.target.tagName)){
+    const act=UI.view==='login'?'doLogin':'doSignup';
+    const btn=document.querySelector(`[data-act="${act}"]`);
+    if(btn&&!btn.disabled){e.preventDefault();btn.click();}
+  }
+});
 
 /* =========================================================
    시작
    ========================================================= */
 try{const ls=localStorage.getItem('gk2-state');if(ls){const v=JSON.parse(ls);if(v&&v.profile)S=Object.assign(baseState(),v);}}catch(_){}
-function fixState(){if(!IND[S.profile.industry])S.profile.industry='restaurant';S.profile.fields=S.profile.fields||{};S.profile.extra=S.profile.extra||{};if(S.example)S.setupDone=true;}
+function fixState(){if(!IND[S.profile.industry])S.profile.industry='restaurant';S.profile.fields=S.profile.fields||{};S.profile.extra=S.profile.extra||{};S.profile.sns=Object.assign(emptySns(),S.profile.sns||{});if(S.example)S.setupDone=true;}
 fixState();
+loadSession();
 try{const lm=localStorage.getItem('gk2-mats');if(lm)M=JSON.parse(lm)||{};}catch(_){M={};}
 if(S.example&&!Object.keys(M).length)M=exampleMats();
 if(S.example&&!S.posts.length)S.posts=examplePosts();
 if(!S.seenLanding)UI.view='landing';
-render();
 /* Claude 전용 기능(cap.sample, cap.db, claude.use) 없음: 원본에서 AI가 꺼졌을 때의 동작 그대로 */
 UI.sampleOff=true;UI.sampleKnown=true;
-if(S.seenLanding&&UI.view==='landing'&&!UI.landingByUser)UI.view='home';
-housekeeping();render();runQueue();
+(async()=>{
+  await probeRdsAuth();
+  if(USE_RDS&&AUTH.user) await loadCloudData();
+  if(S.seenLanding&&UI.view==='landing'&&!UI.landingByUser)UI.view='home';
+  housekeeping();render();runQueue();
+})();
+render();
 
 }

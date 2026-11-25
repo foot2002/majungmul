@@ -68,4 +68,29 @@ ls /srv/majungmul/releases
 
 롤백은 `current`를 이전 배포 디렉터리로 다시 연결하고
 `sudo systemctl restart majungmul`을 실행한다.
-앱 데이터는 기존과 동일하게 사용자의 브라우저 localStorage에 저장된다.
+## RDS (PostgreSQL)
+
+엔드포인트 예: `majungmuldb.cav6wiwhibh6.ap-northeast-3.rds.amazonaws.com:5432`
+
+1. EC2에서 스키마 적용
+
+```sh
+sudo dnf install -y postgresql15
+export DATABASE_URL='postgresql://USER:PASSWORD@majungmuldb.cav6wiwhibh6.ap-northeast-3.rds.amazonaws.com:5432/majungmul?sslmode=require'
+psql "$DATABASE_URL" -f deploy/rds/schema.sql
+```
+
+2. 서비스 환경 파일 생성 (`/etc/majungmul/env`)
+
+```sh
+sudo mkdir -p /etc/majungmul
+sudo tee /etc/majungmul/env >/dev/null <<'EOF'
+DATABASE_URL=postgresql://USER:PASSWORD@majungmuldb.cav6wiwhibh6.ap-northeast-3.rds.amazonaws.com:5432/majungmul?sslmode=require
+EOF
+sudo chmod 600 /etc/majungmul/env
+sudo systemctl daemon-reload
+sudo systemctl restart majungmul
+curl -s http://127.0.0.1:3000/api/health/db
+```
+
+로그인·회원가입·가게 상태·자료함은 RDS에 저장된다. DB가 없거나 `DATABASE_URL`이 비어 있으면 브라우저 localStorage로 폴백한다.

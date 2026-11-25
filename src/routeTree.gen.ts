@@ -10,33 +10,128 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiAuthLoginRouteImport } from './routes/api/auth.login'
+import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth.logout'
+import { Route as ApiAuthMeRouteImport } from './routes/api/auth.me'
+import { Route as ApiAuthSignupRouteImport } from './routes/api/auth.signup'
+import { Route as ApiHealthDbRouteImport } from './routes/api/health.db'
+import { Route as ApiShopMaterialsRouteImport } from './routes/api/shop.materials'
+import { Route as ApiShopStateRouteImport } from './routes/api/shop.state'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthLoginRoute = ApiAuthLoginRouteImport.update({
+  id: '/api/auth/login',
+  path: '/api/auth/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthLogoutRoute = ApiAuthLogoutRouteImport.update({
+  id: '/api/auth/logout',
+  path: '/api/auth/logout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthMeRoute = ApiAuthMeRouteImport.update({
+  id: '/api/auth/me',
+  path: '/api/auth/me',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthSignupRoute = ApiAuthSignupRouteImport.update({
+  id: '/api/auth/signup',
+  path: '/api/auth/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthDbRoute = ApiHealthDbRouteImport.update({
+  id: '/api/health/db',
+  path: '/api/health/db',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiShopMaterialsRoute = ApiShopMaterialsRouteImport.update({
+  id: '/api/shop/materials',
+  path: '/api/shop/materials',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiShopStateRoute = ApiShopStateRouteImport.update({
+  id: '/api/shop/state',
+  path: '/api/shop/state',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/signup': typeof ApiAuthSignupRoute
+  '/api/health/db': typeof ApiHealthDbRoute
+  '/api/shop/materials': typeof ApiShopMaterialsRoute
+  '/api/shop/state': typeof ApiShopStateRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/signup': typeof ApiAuthSignupRoute
+  '/api/health/db': typeof ApiHealthDbRoute
+  '/api/shop/materials': typeof ApiShopMaterialsRoute
+  '/api/shop/state': typeof ApiShopStateRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/signup': typeof ApiAuthSignupRoute
+  '/api/health/db': typeof ApiHealthDbRoute
+  '/api/shop/materials': typeof ApiShopMaterialsRoute
+  '/api/shop/state': typeof ApiShopStateRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/api/auth/login'
+    | '/api/auth/logout'
+    | '/api/auth/me'
+    | '/api/auth/signup'
+    | '/api/health/db'
+    | '/api/shop/materials'
+    | '/api/shop/state'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/api/auth/login'
+    | '/api/auth/logout'
+    | '/api/auth/me'
+    | '/api/auth/signup'
+    | '/api/health/db'
+    | '/api/shop/materials'
+    | '/api/shop/state'
+  id:
+    | '__root__'
+    | '/'
+    | '/api/auth/login'
+    | '/api/auth/logout'
+    | '/api/auth/me'
+    | '/api/auth/signup'
+    | '/api/health/db'
+    | '/api/shop/materials'
+    | '/api/shop/state'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiAuthLoginRoute: typeof ApiAuthLoginRoute
+  ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
+  ApiAuthMeRoute: typeof ApiAuthMeRoute
+  ApiAuthSignupRoute: typeof ApiAuthSignupRoute
+  ApiHealthDbRoute: typeof ApiHealthDbRoute
+  ApiShopMaterialsRoute: typeof ApiShopMaterialsRoute
+  ApiShopStateRoute: typeof ApiShopStateRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +143,67 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/login': {
+      id: '/api/auth/login'
+      path: '/api/auth/login'
+      fullPath: '/api/auth/login'
+      preLoaderRoute: typeof ApiAuthLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/logout': {
+      id: '/api/auth/logout'
+      path: '/api/auth/logout'
+      fullPath: '/api/auth/logout'
+      preLoaderRoute: typeof ApiAuthLogoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/me': {
+      id: '/api/auth/me'
+      path: '/api/auth/me'
+      fullPath: '/api/auth/me'
+      preLoaderRoute: typeof ApiAuthMeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/signup': {
+      id: '/api/auth/signup'
+      path: '/api/auth/signup'
+      fullPath: '/api/auth/signup'
+      preLoaderRoute: typeof ApiAuthSignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health/db': {
+      id: '/api/health/db'
+      path: '/api/health/db'
+      fullPath: '/api/health/db'
+      preLoaderRoute: typeof ApiHealthDbRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/shop/materials': {
+      id: '/api/shop/materials'
+      path: '/api/shop/materials'
+      fullPath: '/api/shop/materials'
+      preLoaderRoute: typeof ApiShopMaterialsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/shop/state': {
+      id: '/api/shop/state'
+      path: '/api/shop/state'
+      fullPath: '/api/shop/state'
+      preLoaderRoute: typeof ApiShopStateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiAuthLoginRoute: ApiAuthLoginRoute,
+  ApiAuthLogoutRoute: ApiAuthLogoutRoute,
+  ApiAuthMeRoute: ApiAuthMeRoute,
+  ApiAuthSignupRoute: ApiAuthSignupRoute,
+  ApiHealthDbRoute: ApiHealthDbRoute,
+  ApiShopMaterialsRoute: ApiShopMaterialsRoute,
+  ApiShopStateRoute: ApiShopStateRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
