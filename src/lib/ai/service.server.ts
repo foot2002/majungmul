@@ -16,6 +16,7 @@ const SYSTEM_PROMPT =
 export function getAiStatus(env: Environment = process.env): AiStatus {
   const defaultProvider = providerSchema.safeParse(env["LLM_DEFAULT_PROVIDER"]);
   return {
+    environment: env["APP_ENV"] === "dev" ? "dev" : "prod",
     defaultProvider: defaultProvider.success ? defaultProvider.data : "anthropic",
     providers: providerSchema.options.map((id) => {
       const prefix = `LLM_${id.toUpperCase()}`;

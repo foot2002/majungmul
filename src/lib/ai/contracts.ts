@@ -135,6 +135,7 @@ export const generateSchema = z
 export type GenerateInput = z.infer<typeof generateSchema>;
 
 export interface AiStatus {
+  environment?: "prod" | "dev";
   defaultProvider: AiProvider;
   providers: {
     id: AiProvider;

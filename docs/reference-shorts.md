@@ -32,7 +32,7 @@ LLM_SHORTS_SPEECH_MODEL=gpt-realtime-2.1-mini
 - 이미지: OpenAI Images Edit, 실제 사진을 기준으로 1024×1024 JPEG 생성.
 - 내레이션: OpenAI Realtime WebSocket의 PCM 24kHz 출력을 서버에서 WAV로 변환. Marin/Cedar 목소리. 응답 전사와 대본을 비교해 다른 문장을 읽은 음성은 거부한다.
 - Claude만 연결되면 대본과 원본 사진·자막·배경음악 영상은 가능하다. AI 이미지와 음성에는 OpenAI 키가 필요하다.
-- 모든 키는 서버 환경변수에만 둔다. 로컬 `.env.local` 또는 EC2 `/etc/majungmul/ai.env` 수정 후 서버를 재시작한다. EC2 서버에는 OpenAI HTTPS/WSS로 나가는 연결이 필요하며 브라우저는 기존 앱 서버만 호출한다.
+- 모든 키는 서버 환경변수에만 둔다. 로컬 `.env_dev`, EC2 운영 `/etc/majungmul/.env` 또는 개발 `/etc/majungmul/.env_dev` 수정 후 서버를 재시작한다. EC2 서버에는 OpenAI HTTPS/WSS로 나가는 연결이 필요하며 브라우저는 기존 앱 서버만 호출한다.
 
 ## 재시도와 저장
 

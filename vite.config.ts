@@ -8,7 +8,8 @@
 // hosting already compresses at the edge.
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
-import { loadEnv, type ConfigEnv } from "vite";
+import { type ConfigEnv } from "vite";
+import { developmentEnvironment } from "./src/lib/ai/environment.server";
 
 const config = defineConfig({
   tanstackStart: {
@@ -20,17 +21,10 @@ const config = defineConfig({
 
 export default (env: ConfigEnv) => {
   if (env.command === "serve") {
-    // Vite exposes only VITE_* to the browser. Load these keys into the dev
-    // server's process only; production reads its runtime environment instead.
-    const local = loadEnv(env.mode, process.cwd(), "");
+    // .env is reserved for production; custom .env_dev is server-only.
+    const local = developmentEnvironment(process.cwd());
     for (const [key, value] of Object.entries(local)) {
-      if (
-        (key.startsWith("LLM_") ||
-          ["ANTHROPIC_API_KEY", "ANTHROPIC_WORKSPACE_ID", "OPENAI_API_KEY", "FAL_KEY"].includes(
-            key,
-          )) &&
-        process.env[key] === undefined
-      ) {
+      if (process.env[key] === undefined) {
         process.env[key] = value;
       }
     }

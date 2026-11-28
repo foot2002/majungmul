@@ -23,7 +23,7 @@ FAL_KEY=
 
 - OpenAI 키: 이미지 편집. `POST https://api.openai.com/v1/images/edits`, 실제 사진을 `images[].image_url`에 전달, JPEG 1024×1536 한 장 생성.
 - fal 키: `fal-ai/kling-video/v3/pro/image-to-video` 모델로 6초 생성. `start_image_url`에 확인한 AI 사진을 전달한다. 모델 자체 음성·음악은 끄고 앱의 기존 배경음악을 합성한다.
-- 로컬은 `.env` 또는 `.env.local`, EC2는 `/etc/majungmul/ai.env`에 설정하고 서버를 재시작한다. 키는 서버에서만 읽고 `VITE_` 접두사를 붙이지 않는다. UI의 연결 표시는 설정 유무이며 실제 사용 권한·잔액 검증은 생성 요청으로 확인한다.
+- 로컬은 `.env_dev`, EC2는 운영 `/etc/majungmul/.env` 또는 개발 `/etc/majungmul/.env_dev`에 설정하고 서버를 재시작한다. 키는 서버에서만 읽고 `VITE_` 접두사를 붙이지 않는다. UI의 연결 표시는 설정 유무이며 실제 사용 권한·잔액 검증은 생성 요청으로 확인한다.
 - 영상 키가 없으면 영상 생성 버튼을 비활성화한다. 사진 확대 효과를 실제 생성 영상으로 표시하지 않는다.
 - Sora/Videos API는 2026-09-24 종료되어 사용하지 않는다.
 

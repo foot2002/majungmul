@@ -1,6 +1,6 @@
 # Claude · ChatGPT API 연결
 
-프로젝트 루트의 `.env`에 각 서비스의 API 키를 입력하면 된다.
+로컬 개발은 프로젝트 루트의 `.env_dev`에 각 서비스의 API 키를 입력하면 된다.
 앱의 **우리 가게 → AI 글쓰기 연결**에서 Claude 또는 ChatGPT를 선택한다.
 글 생성·주제 추천·자동 수정·자료 분석·메뉴판 읽기에 선택한 AI를 사용한다.
 
@@ -24,8 +24,8 @@
 
 ## 설정
 
-`.env`에는 다음 항목이 준비되어 있다. 키 입력란만 본인 계정의 키로 채운다.
-이 파일은 Git에서 제외되므로 새로 클론한 환경에서는 직접 생성한다.
+`.env_dev`에는 다음 항목이 준비되어 있다. 키 입력란만 본인 계정의 키로 채운다.
+이 파일은 Git에서 제외된다. `.env`는 운영용으로 예약하며 로컬 개발에서 대신 읽지 않는다. 서버의 환경파일 생성·배포 방법은 [운영·개발 분리 안내](../deploy/ec2/README.md)를 참고한다.
 
 ```dotenv
 ANTHROPIC_API_KEY=
@@ -52,7 +52,7 @@ LLM_OPENAI_QUICK_MODEL=
 이미지 입력을 지원하며 본인 API 계정에서 접근할 수 있는 모델을 선택한다.
 모델 ID에는 `openai/`, `anthropic/` 같은 게이트웨이 접두사를 붙이지 않는다.
 
-1. `.env`를 저장하고 `bun run dev` 또는 `npm run dev`로 서버를 시작한다.
+1. `.env_dev`를 저장하고 `bun run dev` 또는 `npm run dev`로 서버를 시작한다.
 2. **우리 가게 → AI 글쓰기 연결**에서 공급자를 선택한다.
 3. **연결 확인**을 눌러 짧은 생성 요청 1회로 실제 API 응답을 확인한다.
 
@@ -60,7 +60,7 @@ LLM_OPENAI_QUICK_MODEL=
 API 키나 모델을 변경하면 서버를 재시작하고 **설정 새로고침**을 누른다.
 기존에 **AI 사용 안 함**을 선택한 브라우저에서는 원하는 공급자를 직접 선택한다.
 사용 가능한 모델 목록은 `bun run ai:models`로 조회할 수 있다. 설정된 키의 공급자만 조회하며
-추론 요청은 하지 않는다. 조회 명령은 Node.js 22에서 `.env`, `.env.local` 순으로 읽고,
+추론 요청은 하지 않는다. 조회 명령은 Node.js 22에서 `.env_dev`를 읽고,
 실행 환경에 이미 설정된 값이 있으면 그 값을 우선한다.
 
 ## 호출 구조
@@ -77,9 +77,9 @@ localStorage에는 공급자 선택만 추가로 저장한다. 선택한 가게 
 
 ## 배포 및 오류 처리
 
-- `.env`, `.env.*`는 Git에서 제외한다. 키에 `VITE_` 접두사를 붙이지 않는다.
-- EC2에서는 `/etc/majungmul/ai.env`에 같은 설정을 등록한다. 파일 권한은
-  `root:root`, `0600`으로 관리하고 `sudo systemctl restart majungmul`로 적용한다.
+- `.env`, `.env.*`, `.env_*`는 Git에서 제외한다. 키에 `VITE_` 접두사를 붙이지 않는다.
+- EC2에서는 운영 `/etc/majungmul/.env`, 개발 `/etc/majungmul/.env_dev`에 설정을 등록한다. 파일 권한은
+  `root:root`, `0600`으로 관리하고 운영은 `sudo systemctl restart majungmul-prod`, 개발은 `sudo systemctl restart majungmul-dev`로 적용한다.
   서비스 파일도 바꿨다면 먼저 `sudo systemctl daemon-reload`를 실행한다.
 - Lovable 등 다른 호스팅에서는 같은 이름의 서버 환경변수/Secret을 등록한다.
   빌드는 키 없이 가능하며 운영 키는 런타임에 읽는다.

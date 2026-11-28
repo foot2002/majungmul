@@ -1,0 +1,21 @@
+[Unit]
+Description=Majungmul production
+After=network.target
+
+[Service]
+Type=simple
+DynamicUser=yes
+WorkingDirectory=/srv/majungmul/prod/current
+EnvironmentFile=/etc/majungmul/.env
+ExecStart=/usr/bin/env NODE_ENV=production APP_ENV=prod HOST=127.0.0.1 PORT=3000 /usr/bin/node /srv/majungmul/prod/current/server/index.mjs
+Restart=always
+RestartSec=3
+TimeoutStopSec=35
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target
