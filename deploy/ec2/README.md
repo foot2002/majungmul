@@ -59,14 +59,15 @@ sudo systemctl restart majungmul-prod
 - 쿠키는 포트별로 격리되지 않는다. 현재 인증이 없는 개발 앱에서는 Nginx가
   요청의 `Cookie`와 응답의 `Set-Cookie`를 제거한다. DB 인증 통합 시 이 설정을
   무작정 해제하지 말고, 별도 호스트명 또는 SSH 터널의 다른 호스트로 인증을 분리한다.
-- 개발 `8080`은 보안 그룹과 Nginx 모두 지정한 접속 IP에서만 허용한다.
+- 개발 `8080`은 다른 네트워크에서도 접속할 수 있도록 보안 그룹에서 `0.0.0.0/0`을 허용한다.
+  Nginx에는 별도 접속 IP 제한을 두지 않는다.
   Node `3000` / `3001` 포트는 외부에 개방하지 않는다.
 - 개발 서비스는 CPU 50%, 메모리 상한 384MiB를 적용했다. 서버 장애와 총 자원은 공유한다.
 
-개발 접속 IP가 바뀌면 EC2 보안 그룹 `sg-0aa14f9518f64bca0`의 TCP 8080
-허용 IP(`/32`)와 `/etc/nginx/majungmul-dev-allow.conf`를 함께 변경한다.
-이 파일에는 `allow 127.0.0.1;`, `allow <접속 IP>;`, `deny all;`을 둔다.
-수정 후 `sudo nginx -t && sudo systemctl reload nginx`로 적용한다.
+개발 접속 범위는 EC2 보안 그룹 `sg-0aa14f9518f64bca0`의 TCP 8080 규칙으로 관리한다.
+다시 특정 IP로 제한하려면 이 규칙의 소스를 해당 IP(`/32`)로 변경한다.
+기존 `/etc/nginx/majungmul-dev-allow.conf`는 더 이상 포함하지 않는다.
+보안 그룹을 열어도 이 파일의 `deny all` 때문에 403이 발생하던 중복 제한을 제거했다.
 
 ## 다음 배포
 
