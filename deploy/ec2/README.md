@@ -58,6 +58,10 @@ EC2 보안 그룹에서 TCP 80 인바운드가 허용되어야 외부에서 접�
 
 ## 운영 / 롤백
 
+Claude·ChatGPT 연결은 [AI 연결 안내](../../docs/ai-integration.md)를 참고한다.
+서비스는 `/etc/majungmul/ai.env`가 있으면 서버 환경변수로 읽는다.
+이 파일이 없거나 `LLM_ENABLED=true`가 아니면 AI 호출을 하지 않는다.
+
 ```sh
 sudo systemctl status majungmul nginx
 sudo journalctl -u majungmul -n 100 --no-pager

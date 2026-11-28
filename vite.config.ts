@@ -8,11 +8,32 @@
 // hosting already compresses at the edge.
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import { loadEnv, type ConfigEnv } from "vite";
 
-export default defineConfig({
+const config = defineConfig({
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
     server: { entry: "server" },
   },
 });
+
+export default (env: ConfigEnv) => {
+  if (env.command === "serve") {
+    // Vite exposes only VITE_* to the browser. Load these keys into the dev
+    // server's process only; production reads its runtime environment instead.
+    const local = loadEnv(env.mode, process.cwd(), "");
+    for (const [key, value] of Object.entries(local)) {
+      if (
+        (key.startsWith("LLM_") ||
+          ["ANTHROPIC_API_KEY", "ANTHROPIC_WORKSPACE_ID", "OPENAI_API_KEY", "FAL_KEY"].includes(
+            key,
+          )) &&
+        process.env[key] === undefined
+      ) {
+        process.env[key] = value;
+      }
+    }
+  }
+  return config(env);
+};
