@@ -876,26 +876,24 @@ function promotionBasicsReady(){return guestMode||!!(S.profile.name.trim()&&S.pr
 function canGenerate(f){return !!f.topic.trim()||selectedPhotoMats(f).length>0;}
 function updateGenerateButton(){const f=UI.flow,b=$('[data-act="generate"]');if(!f||!b)return;b.disabled=!canGenerate(f);b.textContent=selectedPhotoMats(f).length?(guestMode?'사진으로 SNS 만들기':'사진·기본 정보로 SNS 만들기'):f.topic.trim()?'AI로 채널별 글 만들기':'사진을 올리거나 주제를 적어주세요';}
 function promotionSettings(f){
-  const ps=UI.aiStatus?.providers||[];
   const faces=selectedPhotoMats(f).filter(m=>m.faces&&!m.faceApproved);
+  const notices=`${f.generateError?`<div class="banner warn" role="alert"><span>${esc(f.generateError)} 사진과 입력 내용은 그대로 있어요.</span>${!cap.sample?'<button class="btn sm" data-act="refreshAi">연결 다시 확인</button>':''}</div>`:''}
+    ${faces.length?`<div class="banner warn"><span>선택한 사진 ${faces.length}장에 얼굴이 보여요. 사용 동의를 받은 경우에만 홍보에 넣어주세요.</span><button class="btn sm" data-act="approvePhotoFaces">사진 속 사람들의 동의를 받았어요</button></div>`:''}`;
+  if(guestMode)return notices;
   return `<section class="card stack">
-    <div class="row between"><h2>${guestMode?'홍보물을 만들 AI':'사진과 함께 사용할 기본 정보'}</h2><span class="chip ${cap.sample?'good':'warn'}">${cap.sample?esc(PROVIDER_LABELS[UI.aiProvider])+' 연결됨':'AI 연결 필요'}</span></div>
-    ${guestMode?'':`<p class="small muted">가게 이름과 동네만 있어도 시작할 수 있어요. 등록한 메뉴·가격·특징도 함께 참고하며, 비어 있는 정보는 넣지 않아요.</p>
-    <div class="grid3"><label class="stack small" style="gap:4px">가게 이름<input class="inp" data-field="name" value="${esc(S.profile.name)}" placeholder="예) 온기카페"></label><label class="stack small" style="gap:4px">동네<input class="inp" data-field="area" value="${esc(S.profile.area)}" placeholder="예) 성수동"></label><label class="stack small" style="gap:4px">영업시간 (선택)<input class="inp" data-field="hours" value="${esc(S.profile.hours)}" placeholder="예) 매일 10:00–21:00"></label></div>`}
-    <label class="${guestMode?'sr':'lbl'}" for="promotionProvider">홍보물을 만들 AI</label><select class="inp" id="promotionProvider" ${UI.aiLoading?'disabled':''}><option value="off" ${UI.aiProvider==='off'?'selected':''}>AI 선택</option>${ps.map(p=>`<option value="${p.id}" ${UI.aiProvider===p.id?'selected':''} ${p.configured?'':'disabled'}>${esc(p.label)}${p.configured?'':' · 연결 설정 필요'}</option>`).join('')}</select>
-    <p class="xs muted">선택한 사진과 ${guestMode?'직접 입력한 설명':'가게 정보'}가 해당 AI로 전달돼요.</p>
-    ${!ps.some(p=>p.configured)?'<button class="btn sm" data-act="refreshAi">AI 연결 상태 다시 확인</button>':''}
-    ${f.generateError?`<div class="banner warn" role="alert"><span>${esc(f.generateError)} 사진과 입력 내용은 그대로 있어요.</span></div>`:''}
-    ${faces.length?`<div class="banner warn"><span>선택한 사진 ${faces.length}장에 얼굴이 보여요. 사용 동의를 받은 경우에만 홍보에 넣어주세요.</span><button class="btn sm" data-act="approvePhotoFaces">사진 속 사람들의 동의를 받았어요</button></div>`:''}
+    <h2>사진과 함께 사용할 기본 정보</h2>
+    <p class="small muted">가게 이름과 동네만 있어도 시작할 수 있어요. 등록한 메뉴·가격·특징도 함께 참고하며, 비어 있는 정보는 넣지 않아요.</p>
+    <div class="grid3"><label class="stack small" style="gap:4px">가게 이름<input class="inp" data-field="name" value="${esc(S.profile.name)}" placeholder="예) 온기카페"></label><label class="stack small" style="gap:4px">동네<input class="inp" data-field="area" value="${esc(S.profile.area)}" placeholder="예) 성수동"></label><label class="stack small" style="gap:4px">영업시간 (선택)<input class="inp" data-field="hours" value="${esc(S.profile.hours)}" placeholder="예) 매일 10:00–21:00"></label></div>
+    ${notices}
   </section>`;
 }
 function ingredients(f){
   const pm=M[f.photoMat];const realPhoto=!!(f.photo&&(f.photoAck||!pm||pm.storePhoto!==false));
-  const answers=Object.values(f.answers||{}).filter(x=>x&&x.trim()).length;
+  const hasNote=!!(f.note||'').trim();
   const extra=f.mats.filter(id=>id!==f.photoMat&&M[id]).length;
   return [
     {ok:realPhoto,label:'직접 찍은 가게 사진',hint:'1번에서 찍거나 골라요'},
-    {ok:answers>0,label:'사장님만 아는 한 줄',hint:'사진 질문에 한 줄만'},
+    {ok:hasNote,label:'추가 설명',hint:'꼭 넣고 싶은 말에 적어요'},
     {ok:(f.aud||[]).length>0&&((f.why||[]).length>0||(f.note||'').trim().length>0),label:'누구에게 · 왜 지금',hint:'버튼 두 번이면 돼요'},
     {ok:extra>0||S.stories.length>0,label:'함께 넣을 자료',hint:'후기·메뉴판이 있으면 더 좋아요'}
   ];
@@ -903,7 +901,6 @@ function ingredients(f){
 function createInput(f){
   const ph=f.photo,pm=M[f.photoMat],miss=missingInfo(),pending=pm&&pm.status==='pending'&&!pm.analysisOwner;
   const notStore=pm&&pm.storePhoto===false&&!f.photoAck;
-  const qs=photoQuestions(pm);f.answers=f.answers||{};
   const ing=ingredients(f),okN=ing.filter(i=>i.ok).length;
   const extra=f.mats.filter(id=>id!==f.photoMat).map(id=>M[id]).filter(Boolean);
   const kindLabel=m=>m.src==='text'?'글·후기':m.src==='doc'?'문서':'사진 설명';
@@ -926,11 +923,6 @@ function createInput(f){
       <div class="row"><span class="chip ink">2</span><h2>무엇을 알릴까요?</h2></div>
       <label class="lbl" for="fTopic">주제 (선택 · 비워두면 사진으로 정해요)</label><input id="fTopic" class="inp" value="${esc(f.topic)}" placeholder="${pending?'사진을 보고 주제를 제안하는 중이에요…':notStore?'가게 사진을 올리면 주제를 제안해요':'예) 겨울 신메뉴 유자 라떼'}">
       ${f.topicAuto?'<span class="xs muted">사진을 보고 제안한 주제예요. 바꿔도 돼요.</span>':''}
-      ${qs.length&&!notStore?`<div class="stack" style="gap:10px;background:var(--accent-soft);border-radius:14px;padding:14px">
-        <b style="color:var(--accent-text)">더 알려주고 싶다면 (선택)</b>
-        <span class="xs" style="color:var(--accent-text)">${guestMode?'사진만으로 알 수 없는 내용을 이번 홍보물에 더할 수 있어요.':'AI는 사진만 보고는 모르는 사실이에요. 답은 ‘가게 이야기’에도 저장돼 다음 글에 또 쓰여요.'}</span>
-        ${qs.map((q,i)=>`<div class="stack" style="gap:4px"><label class="lbl" for="pq${i}" style="color:var(--ink)">${esc(q)}</label><div class="row" style="flex-wrap:nowrap"><input id="pq${i}" class="inp" data-pq="${i}" value="${esc(f.answers[i]||'')}" placeholder="짧게, 말하듯">${cap.dict?`<button class="btn mic ${dictTarget==='pq'+i?'on':''}" data-act="dict" data-t="pq${i}" aria-label="말로 답하기">${ic('mic',18)}</button>`:''}</div></div>`).join('')}
-      </div>`:''}
       <div class="stack" style="gap:6px"><span class="lbl">누구에게 알릴까요? <span class="muted">(눌러서 고르기 · 여러 개 가능)</span></span>
         <div class="row" style="gap:6px">${(guestMode?['처음 방문하는 분','단골 손님','동네 이웃','친구·가족']:(AUD[S.profile.industry]||[])).map(a=>`<button class="tab" style="height:38px" aria-pressed="${(f.aud||[]).includes(a)}" aria-selected="${(f.aud||[]).includes(a)}" data-act="tglAud" data-v="${esc(a)}">${esc(a)}</button>`).join('')}</div></div>
       <div class="stack" style="gap:6px"><span class="lbl">왜 지금 와야 하나요? <span class="muted">(눌러서 고르기)</span></span>
@@ -1311,7 +1303,7 @@ document.addEventListener('input',e=>{
 });
 document.addEventListener('change',e=>{
   const el=e.target;
-  if(el.id==='aiProvider'||el.id==='promotionProvider'||el.id==='menuProvider'){generationGate.cancel();stopMenuImport();UI.menuError='';saveAiPreference(el.value);applyAiProvider(el.value);if(UI.flow)UI.flow.generateError='';S.topics=null;persist();render();runQueue();return;}
+  if(el.id==='aiProvider'||el.id==='menuProvider'){generationGate.cancel();stopMenuImport();UI.menuError='';saveAiPreference(el.value);applyAiProvider(el.value);if(UI.flow)UI.flow.generateError='';S.topics=null;persist();render();runQueue();return;}
   if(el.dataset.sel){toggleSel(el.dataset.sel);}
   if(el.dataset.mr&&UI.menuReview){UI.menuReview[Number(el.dataset.mr)].ok=el.checked;}
   if(el.dataset.kind&&M[el.dataset.kind]){const m=M[el.dataset.kind];m.kind=el.value;m.status='ready';m.summary=m.summary==='정리 전 자료 · 종류를 골라주세요'?el.value+' 자료':m.summary;saveMat(m);render();}
@@ -1448,7 +1440,8 @@ async function doGenerate(exampleOnly=false){
   const f=UI.flow;if(!f||!canGenerate(f)||(f.job&&generationGate.isCurrent(f.job)))return;
   f.generateError='';
   if(!exampleOnly&&!promotionBasicsReady()){f.generateError='가게 이름과 동네를 먼저 적어주세요.';f.stage='input';render();return;}
-  if(!exampleOnly&&!cap.sample){f.generateError=UI.aiLoading?'AI 연결을 확인하고 있어요. 잠시 후 다시 눌러주세요.':'사용할 AI를 선택해 주세요. 연결된 AI로 실제 홍보물을 만들어요.';f.stage='input';render();return;}
+  if(!exampleOnly&&UI.aiProvider==='off'&&UI.aiStatus)applyAiProvider(resolveAiProvider(UI.aiStatus,null));
+  if(!exampleOnly&&!cap.sample){f.generateError=UI.aiLoading?'AI 연결을 확인하고 있어요. 잠시 후 다시 눌러주세요.':'AI 연결 설정을 확인한 뒤 다시 시도해 주세요.';f.stage='input';render();return;}
   const photos=selectedPhotoMats(f),blocked=photos.find(m=>m.archived||m.excluded||(m.faces&&!m.faceApproved)||(m.storePhoto===false&&!(f.photoAck&&m.id===f.photoMat)));
   if(!exampleOnly&&blocked){f.generateError=blocked.faces&&!blocked.faceApproved?'사진 속 사람의 동의를 확인하거나 해당 사진을 빼주세요.':'선택한 사진 중 홍보에 사용할 수 없는 자료가 있어요. 가게 사진으로 바꿔주세요.';f.stage='input';render();return;}
   const pm=M[f.photoMat],qs=photoQuestions(pm);f.qa=[];Object.entries(f.answers||{}).forEach(([i,a])=>{if(a&&a.trim()&&qs[i]){f.qa.push({q:qs[i],a:a.trim()});if(!S.stories.some(x=>x.a===a.trim()))S.stories.push({q:qs[i],a:a.trim(),at:Date.now()});}});if(f.qa.length)persist();
