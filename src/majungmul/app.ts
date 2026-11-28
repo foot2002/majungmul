@@ -2,6 +2,11 @@
 /* reference/majungmul-app.html 의 <script> 로직을 옮긴 모듈.
    원본 함수·상태(S, M, UI, IND …)·data-act 동작을 그대로 유지한다. */
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import { createAiSample, getAiConfiguration, resolveAiProvider, saveAiPreference } from '@/lib/ai/client';
+import { PROVIDER_LABELS } from '@/lib/ai/contracts';
+import { buildPhotoPromotionPrompt, buildPhotoRevisionPrompt, photoDraftQuality, formatPhotoDrafts, createGenerationGate } from '@/lib/ai/photo-promotion';
+import { buildMenuImportPrompt, menuReviewItems, parseMenuPrice, applyMenuImport } from '@/lib/ai/menu-import';
+import { clearMediaStudio, handleMediaAction, mediaStudioHtml, mountMediaCards, promotionBrief } from './media-studio';
 
 let started=false;
 export function startMajungmul(){
@@ -110,6 +115,9 @@ let UI={view:'home',flow:null,filter:'전체',modal:null,qDraft:'',storeEdit:nul
 let cap={db:null,uid:null,sample:null,dict:null};
 let dictTarget=null;
 let queueRunning=false;
+const generationGate=createGenerationGate();
+const menuGenerationGate=createGenerationGate();
+let uploadVersion=0;
 
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -160,14 +168,15 @@ function hamming(a,b){if(!a||!b)return 64;let n=0;for(let i=0;i<16;i++){let v=pa
 // 품질: 선명도(라플라시안 분산) × 밝기
 function quality(img){const w=64,h=64,g=grayData(img,w,h);let sum=0;for(const v of g)sum+=v;const mean=sum/g.length;let lv=[];for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){const i=y*w+x;lv.push(4*g[i]-g[i-1]-g[i+1]-g[i-w]-g[i+w]);}const lm=lv.reduce((a,b)=>a+b,0)/lv.length;const varL=lv.reduce((a,b)=>a+(b-lm)*(b-lm),0)/lv.length;const sharp=varL/(varL+300);const bright=mean<45||mean>225?0.5:mean<70||mean>200?0.8:1;return Math.round(sharp*bright*100)/100;}
 function dataUrlToBlob(u){const [h,b]=u.split(',');const mime=(h.match(/:(.*?);/)||[])[1]||'image/jpeg';const bin=atob(b);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);return new Blob([arr],{type:mime});}
+async function photoBlob(src){if(src.startsWith('data:'))return dataUrlToBlob(src);return dataUrlToBlob(drawTo(await loadImg(src),1024).toDataURL('image/jpeg',0.85));}
 // 예시 매장용 그림 사진(실제 사진 아님)
 function demoPhoto(label,bg,fg){const c=document.createElement('canvas');c.width=640;c.height=480;const x=c.getContext('2d');x.fillStyle=bg;x.fillRect(0,0,640,480);x.fillStyle=fg;x.globalAlpha=.35;x.beginPath();x.arc(140,420,220,0,7);x.fill();x.beginPath();x.arc(560,60,150,0,7);x.fill();x.globalAlpha=1;x.fillStyle='rgba(255,255,255,.92)';x.fillRect(220,170,200,170);x.fillStyle=fg;x.fillRect(232,184,176,46);x.fillStyle='#16181D';x.font='bold 30px sans-serif';x.textAlign='center';x.fillText(label,320,400);x.font='16px sans-serif';x.fillText('예시 이미지',320,440);return c.toDataURL('image/jpeg',0.7);}
 function exampleMats(){
   const now=Date.now();const mk=(o)=>Object.assign({id:uid(),src:'photo',status:'ready',quality:0.8,hash:null,group:null,rep:true,pinned:false,excluded:false,used:0,lastUsed:0,at:now-3*DAY,archived:false,ends:null,faces:false,facts:[],tags:[],example:true},o);
   const list=[
-    mk({kind:'메뉴',menu:['유자 라떼'],summary:'유자 라떼 한 잔, 위에 유자 슬라이스',tags:['유자','라떼','겨울'],thumb:demoPhoto('유자 라떼','#EFD9B8','#F2A93B'),pinned:true}),
-    mk({kind:'과정',menu:['유자 라떼'],summary:'유자를 직접 썰어 설탕과 병에 담는 모습',tags:['유자청','수제청','과정'],thumb:demoPhoto('유자청 담그기','#F4E8C1','#E0B030')}),
-    mk({kind:'공간',menu:[],summary:'오후 햇살이 드는 창가 2인석',tags:['창가','햇살','자리'],thumb:demoPhoto('창가 자리','#DCE6EF','#9DB7D0'),used:2,lastUsed:now-9*DAY}),
+    mk({kind:'메뉴',menu:['유자 라떼'],summary:'유자 라떼 한 잔, 위에 유자 슬라이스',tags:['유자','라떼','겨울'],thumb:'/media/demo/yuja-latte.png',pinned:true}),
+    mk({kind:'과정',menu:['유자 라떼'],summary:'유자를 직접 썰어 설탕과 병에 담는 모습',tags:['유자청','수제청','과정'],thumb:'/media/demo/yuja-preserve.png'}),
+    mk({kind:'공간',menu:[],summary:'오후 햇살이 드는 창가 2인석',tags:['창가','햇살','자리'],thumb:'/media/demo/cafe-window.png',used:2,lastUsed:now-9*DAY}),
     mk({kind:'메뉴',menu:['브런치 세트'],summary:'브런치 세트: 토스트, 샐러드, 스크램블',tags:['브런치','주말'],thumb:demoPhoto('브런치 세트','#E9E2D3','#B9A27A')}),
     mk({kind:'후기',src:'text',menu:['유자 라떼'],summary:'후기: 창가 자리가 아늑하고 유자 라떼가 많이 달지 않아 좋았다',tags:['후기','창가','유자 라떼'],thumb:null})
   ];
@@ -194,19 +203,20 @@ function examplePosts(){
 /* =========================================================
    자료 올리기 → 즉시 처리 → 정리 대기열
    ========================================================= */
-async function ingestFiles(files){
+async function ingestFiles(files,forPost=false){
   const arr=[...files].slice(0,30);
-  if(!arr.length)return;
+  if(!arr.length)return [];
   toast(`${arr.length}장을 받았어요. 정리할게요`);
-  let dup=0;
+  let dup=0;const ids=[];
   for(const f of arr){
     try{
-      const url=URL.createObjectURL(f);const img=await loadImg(url);URL.revokeObjectURL(url);
-      const thumb=drawTo(img,640).toDataURL('image/jpeg',0.72);
+      const url=URL.createObjectURL(f);let img;try{img=await loadImg(url);}finally{URL.revokeObjectURL(url);}
+      const thumb=drawTo(img,forPost?1280:640).toDataURL('image/jpeg',forPost?0.82:0.72);
       const hash=dHash(img), q=quality(img);
       const m={id:uid(),src:'photo',kind:null,menu:[],summary:'',tags:[],facts:[],hash,quality:q,group:null,rep:true,pinned:false,excluded:false,used:0,lastUsed:0,at:Date.now(),archived:false,ends:null,faces:false,status:'pending',thumb};
       // 비슷한 사진 묶기
-      const sib=Object.values(M).find(x=>x.src==='photo'&&x.hash&&hamming(x.hash,hash)<=8);
+      if(forPost){m.analysisOwner='promotion';m.status='manual';}
+      const sib=!forPost&&Object.values(M).find(x=>x.src==='photo'&&x.hash&&hamming(x.hash,hash)<=8);
       if(sib){
         m.group=sib.group||sib.id; if(!sib.group){sib.group=sib.id;}
         dup++;
@@ -217,11 +227,11 @@ async function ingestFiles(files){
         } else { m.rep=false; Object.assign(m,{kind:sib.kind,menu:sib.menu,summary:sib.summary,tags:sib.tags,faces:sib.faces,status:'ready'}); }
         saveMat(sib);
       }
-      M[m.id]=m; saveMat(m);
+      M[m.id]=m; saveMat(m);ids.push(m.id);
     }catch(_){toast('열 수 없는 사진이 있어 건너뛰었어요');}
   }
   if(dup)toast(`비슷한 사진 ${dup}장은 묶어서 잘 나온 한 장만 쓸게요`);
-  render(); runQueue();
+  render(); if(!forPost)runQueue();return ids;
 }
 const LIBS={pdf:[pdfWorkerUrl]};
 const loaded={};
@@ -229,10 +239,10 @@ const loaded={};
 const LIBMOD={};
 async function loadLib(k){if(LIBMOD[k])return LIBMOD[k];LIBMOD[k]=k==='pdf'?await import('pdfjs-dist'):k==='docx'?await import('mammoth'):await import('xlsx');return LIBMOD[k];}
 function extOf(f){return (f.name.split('.').pop()||'').toLowerCase();}
-async function ingestAny(files){
+async function ingestAny(files,forPost=false){
   const imgs=[],others=[];
   [...files].forEach(f=>{if(f.size>15*1024*1024){toast(`${f.name}은 15MB가 넘어서 건너뛰었어요`);return;}if(f.type.startsWith('image/'))imgs.push(f);else others.push(f);});
-  if(imgs.length)await ingestFiles(imgs);
+  const ids=imgs.length?await ingestFiles(imgs,forPost):[];
   for(const f of others){
     const ext=extOf(f);
     try{
@@ -247,7 +257,7 @@ async function ingestAny(files){
       else toast(`${f.name}은 아직 못 읽는 형식이에요. 사진으로 찍거나 PDF로 저장해서 올려주세요`);
     }catch(_){toast(`${f.name}을 열지 못했어요. 사진으로 찍어서 올려주세요`);}
   }
-  render();runQueue();
+  render();if(!forPost)runQueue();return ids;
 }
 function addDocPage(canvas,name){
   const thumb=(()=>{const c=document.createElement('canvas');const r=Math.min(1,900/Math.max(canvas.width,canvas.height));c.width=canvas.width*r;c.height=canvas.height*r;c.getContext('2d').drawImage(canvas,0,0,c.width,c.height);return c.toDataURL('image/jpeg',0.75);})();
@@ -264,11 +274,11 @@ async function runQueue(){
   if(queueRunning)return; queueRunning=true;
   try{
     for(;;){
-      const m=Object.values(M).find(x=>x.status==='pending'&&x.rep);
+      const m=Object.values(M).find(x=>x.status==='pending'&&x.rep&&!x.analysisOwner);
       if(!m)break;
       if(!cap.sample){ // AI 없이: 사장님이 직접 종류를 고르게
         if(!UI.sampleKnown)break;
-        Object.values(M).filter(x=>x.status==='pending').forEach(x=>{x.status='manual';x.kind=x.kind||(x.src==='text'?'글':'메뉴');x.summary=x.summary||'정리 전 자료 · 종류를 골라주세요';saveMat(x);});
+        Object.values(M).filter(x=>x.status==='pending'&&!x.analysisOwner).forEach(x=>{x.status='manual';x.kind=x.kind||(x.src==='text'?'글':'메뉴');x.summary=x.summary||'정리 전 자료 · 종류를 골라주세요';saveMat(x);});
         break;
       }
       try{
@@ -334,13 +344,13 @@ async function selectMaterials(topic,wantKind){
   if(cands.length>8&&cap.sample){
     try{
       const list=cands.map(x=>`${x.m.id}: [${x.m.kind}] ${x.m.summary}`).join('\n');
-      const r=await cap.sample.json(`주제 "${topic}"로 가게 홍보 글을 쓴다. 아래 자료 중 가장 잘 맞는 것을 3~5개 고르고, 사진이 있으면 1개 이상 포함하라.\n${list}\nJSON만: {"ids":["..."]}`,{modelTier:'quick'});
+      const r=await cap.sample.json(`주제 "${topic}"로 가게 홍보 글을 쓴다. 아래 자료 중 가장 잘 맞는 것을 3~5개 고르고, 사진이 있으면 1개 이상 포함하라.\n${list}\nJSON만: {"ids":["..."]}`,{modelTier:'quick',task:'selection'});
       const ok=(r.ids||[]).filter(id=>M[id]); if(ok.length)ids=ok.slice(0,5);
     }catch(_){}
   }
   return ids;
 }
-function mainPhoto(ids){const ps=ids.map(i=>M[i]).filter(m=>m&&m.thumb&&m.src==='photo'&&m.storePhoto!==false);ps.sort((a,b)=>(b.pinned-a.pinned)||(b.quality-a.quality));return ps[0]||null;}
+function mainPhoto(ids){const ps=ids.map(i=>M[i]).filter(m=>m&&m.thumb&&m.src==='photo'&&!m.excluded&&!m.archived&&m.storePhoto!==false);ps.sort((a,b)=>(b.pinned-a.pinned)||(b.quality-a.quality));return ps[0]||null;}
 function unusedGood(){return Object.values(M).filter(m=>usable(m)&&m.thumb&&m.src==='photo'&&!m.used&&m.quality>=0.4);}
 
 /* =========================================================
@@ -384,14 +394,14 @@ function applyFix(d,pb,how){
 function styleProblems(f,c){const d=f.drafts[c];const text=(d.title||'')+'\n'+(d.body||'');const out=CLICHES.filter(x=>text.includes(x)).map(x=>({kind:'cliche',token:x}));const others=f.selected.filter(x=>x!==c&&f.drafts[x]).map(x=>sentences(f.drafts[x].body)).flat();sentences(d.body).forEach(sn=>{if(others.includes(sn))out.push({kind:'dup',token:sn.slice(0,20)});});return out;}
 function paceBlocked(c,when){if(!CHMAP[c]||c==='place')return false;const day=dayKey(when||Date.now());return S.posts.filter(p=>p.channels.includes(c)&&dayKey(p.when)===day).length>=CHMAP[c].perDay;}
 /* 생성 직후 자동으로 고치기: 사장님이 숨은그림 찾기를 하지 않게 */
-async function autoFixAll(f){
+async function autoFixAll(f,allowRewrite=true){
   let fixedFact=0,fixedBan=0,fixedStyle=0;
   for(const c of DRAFT_CH){
-    if(!f.selected.includes(c)||!f.drafts[c])continue;
+    if(!f.drafts[c])continue;
     const d=f.drafts[c];const probs=contentProblems(d),style=styleProblems(f,c);
     if(!probs.length&&!style.length)continue;
     f.genMsg=`${CHMAP[c].name} 글을 매장 정보와 맞추는 중`;render();
-    if(cap.sample){
+    if(allowRewrite&&cap.sample&&!f.fellBack){
       try{const r=await aiRewrite(c,d,'아래 문제만 고치고 나머지 문장은 최대한 그대로 둔다.',probs.map(p=>({msg:p.kind==='price'?`‘${p.token}’은 매장 정보에 없는 가격 → 매장 정보 값으로 바꾸거나 빼기`:p.kind==='time'?`‘${p.token}’은 영업시간에 없는 시각 → 빼기`:`‘${p.token}’은 금지 표현 → 다른 말로`})).concat(style.map(x=>({msg:x.kind==='cliche'?`상투 표현 ‘${x.token}’ → 구체적인 말로`:`다른 채널과 같은 문장 “${x.token}…” → 다르게`}))),f.mats);
         if(r&&r.body){d.body=r.body;if(r.title!=null&&CHMAP[c].title)d.title=r.title;fixedStyle+=style.length;}}catch(_){}
     }
@@ -441,7 +451,7 @@ function appeal(chId,d,f){
 }
 
 /* =========================================================
-   Claude 호출
+   공통 AI 호출 (Claude / ChatGPT)
    ========================================================= */
 function profileText(){
   const p=S.profile,T=IND[p.industry],f=p.fields||{};
@@ -457,16 +467,16 @@ function seasonHint(){const mo=new Date().getMonth()+1;if(S.profile.industry==='
 async function askJson(prompt,opts){
   if(!cap.sample)throw{code:'no_sample'};
   try{return await cap.sample.json(prompt,Object.assign({modelTier:'default'},opts||{}));}
-  catch(e){if(e&&e.code==='not_granted'){cap.sample=null;UI.sampleOff=true;render();}throw e;}
+  catch(e){if(e?.name==='AbortError')throw e;UI.aiError=e&&e.message||'AI에 연결하지 못했어요.';if(e&&['not_granted','not_configured'].includes(e.code)){cap.sample=null;UI.sampleOff=true;}render();throw e;}
 }
 async function aiTag(m){
   const menuNames=S.profile.menu.map(x=>x.name).join(', ')||'(없음)';
   let base=`동네 ${IND[S.profile.industry].label}의 마케팅 자료를 정리한다. 등록된 메뉴: ${menuNames}.
 JSON만 출력: {"storePhoto":가게·메뉴·공간·사람·만드는 과정을 직접 찍은 사진이면 true, 화면 캡처·표·문서·광고물·관련 없는 이미지면 false,"topicIdea":"이 자료로 손님에게 알릴 만한 홍보 주제 20자 이내(가게와 관련 없으면 빈 값)","questions":["이 자료로 글을 쓸 때 사장님만 아는 구체적 사실을 끌어낼 짧은 질문 2개(예: 언제부터 팔았나요? 재료는 어디서?)"],"kind":"메뉴|공간|사람|과정|이벤트|후기|글 중 하나","menu":["등록된 메뉴 이름 중 보이는 것"],"summary":"40자 이내 사실 묘사","tags":["2~6개"],"faces":사람 얼굴이 알아볼 수 있게 보이면 true,"facts":[{"type":"price","item":"메뉴 이름","value":숫자} 또는 {"type":"event","title":"","ends":"YYYY-MM-DD 또는 빈 값"}]}
 보이지 않는 것은 쓰지 않는다. 가격·이벤트는 글자로 분명히 보일 때만 facts에 넣는다.`;
-  if(m.src==='text') return await askJson(base+'\n자료(사장님이 올린 글·파일 내용):\n'+m.text,{modelTier:'quick'});
+  if(m.src==='text') return await askJson(base+'\n자료(사장님이 올린 글·파일 내용):\n'+m.text,{modelTier:'quick',task:'tags'});
   if(m.src==='doc') base+='\n이 이미지는 사진이 아니라 문서(전단지·메뉴판·가격표·안내문 등) 페이지다. 적힌 글자에서 사실을 뽑는다.';
-  const opts={modelTier:'quick'};try{const lim=await cap.sample.limits();if(lim&&lim.images)opts.images=[dataUrlToBlob(m.thumb)];else throw 0;}catch(_){return {kind:'메뉴',summary:'사진 자료',tags:[],facts:[]};}
+  const opts={modelTier:'quick',task:'tags',images:[await photoBlob(m.thumb)]};
   return await askJson(base,opts);
 }
 const RULES=`규칙:
@@ -492,11 +502,11 @@ ${profileText()}
 ${pool.map(m=>`${m.id}: [${m.kind}] ${m.summary} (사용 ${m.used}회)`).join('\n')||'(없음)'}
 규칙: 서로 다른 종류로 고르고 최근 주제와 겹치지 않게. 가능하면 아직 안 쓴 자료를 살린다. 매장 정보·자료에 없는 사실은 근거로 쓰지 않는다.
 JSON만: {"topics":[{"title":"20자 이내","why":"오늘인 이유 한 문장","tag":"2~4자","kind":"메뉴|공간|사람|과정|이벤트|후기","matIds":["위 자료 id 1~3개"],"basis":[{"k":"근거 종류","v":"짧은 근거"}]}]}`;
-  const r=await askJson(prompt,{modelTier:'quick'});
+  const r=await askJson(prompt,{modelTier:'quick',task:'topics'});
   if(!r||!Array.isArray(r.topics))throw{code:'bad'};
   return r.topics.slice(0,3).map(t=>Object.assign(t,{matIds:(t.matIds||[]).filter(id=>M[id])}));
 }
-async function aiDrafts(f){
+async function aiDrafts(f,signal){
   const prompt=`당신은 동네 가게의 마케팅 글을 쓰는 작가다. 주제에 맞춰 채널별 글을 써라.
 주제: ${f.topic}
 사장님 한 줄: ${f.note||'(없음)'}
@@ -514,13 +524,13 @@ ${RULES}
 채널 형식:
 - blog: title 40자 이내(동네+업종 키워드), body 600~900자, 문단 4~6개, 마지막 문단에 위치·영업시간(매장 정보에 있을 때만)
 - insta: body 250자 이내, 마지막 줄 해시태그 4~6개
-- shorts: title 40자 이내, body는 장면 자막 3줄(각 18자 이내, 줄바꿈)
+- shorts: title 40자 이내, body는 30초 영상 가운데 세 장면의 자막 3줄(각 18자 이내, 줄바꿈). 도입(주제)과 마지막 방문 안내는 앱에서 별도로 넣는다.
 - threads: body 180자 이내, 말하듯
 - facebook: body 300자 이내
 - daangn: title 30자 이내, body 300자 이내, 이웃에게 말하듯
 JSON만: {"blog":{"title":"","body":""},"insta":{"body":""},"shorts":{"title":"","body":""},"threads":{"body":""},"facebook":{"body":""},"daangn":{"title":"","body":""}}`;
-  const opts={modelTier:'default'};
-  if(f.photo){try{const lim=await cap.sample.limits();if(lim&&lim.images)opts.images=[dataUrlToBlob(f.photo)];}catch(_){}}
+  const opts={modelTier:'default',task:'drafts',signal};
+  if(f.photo)opts.images=[await photoBlob(f.photo)];
   return await askJson(prompt,opts);
 }
 async function aiRewrite(chId,d,instruction,issues,mats){
@@ -535,11 +545,7 @@ ${RULES}
 원래 글:
 ${CHMAP[chId].title?'제목: '+(d.title||'')+'\n':''}본문: ${d.body}
 JSON만: {${CHMAP[chId].title?'"title":"",':''}"body":""}`;
-  return await askJson(prompt,{modelTier:'default'});
-}
-async function aiMenu(blob){
-  const lim=await cap.sample.limits();if(!lim||!lim.images)throw{code:'no_images'};
-  return await askJson(`이 ${IND[S.profile.industry].sheet} 사진에서 ${IND[S.profile.industry].item} 이름과 가격을 읽어라.`+' 읽기 어려운 가격은 null. 추측 금지. JSON만: {"items":[{"name":"","price":0}]}',{images:[blob],modelTier:'default'});
+  return await askJson(prompt,{modelTier:'default',task:'rewrite'});
 }
 function fallbackDrafts(f){
   const p=S.profile,st=p.strengths[0]||'',story=(S.stories[0]&&S.stories[0].a)||'',mt=f.mats.map(id=>M[id]).filter(Boolean)[0],m=p.menu[0];
@@ -604,7 +610,7 @@ function viewHome(){
   const lastPost=S.posts[S.posts.length-1];const reward=lastPost&&lastPost.mats&&lastPost.mats.length?`지난 글 ‘${lastPost.topic}’에 자료 ${lastPost.mats.length}개를 썼어요.`:'';
   return `
   ${S.example?`<div class="banner info"><span>지금은 <b>예시 매장(온기카페)</b>이에요. 그대로 눌러보셔도 되고, 내 가게로 바꿔도 돼요.</span><button class="btn sm" data-act="reset">내 가게로 시작</button></div>`:''}
-  ${UI.sampleOff?`<div class="banner warn"><span>Claude 연결이 허용되지 않아 기본 문구로 만들어요. 자료 자동 정리도 멈춰 있어요.</span></div>`:''}
+  ${UI.sampleOff?`<div class="banner warn"><span>사진으로 SNS를 만들려면 AI를 연결해 주세요. 사진을 고른 뒤에도 연결할 수 있어요.</span><button class="btn sm" data-act="nav" data-v="store">AI 설정</button></div>`:''}
   ${!S.example&&reqStatus().missing.length?`<div class="banner warn"><span>필수 정보 <b>${reqStatus().missing.length}개</b>가 비어 있어요. 채워야 우리 가게에 맞는 글이 나와요.</span><button class="btn sm" data-act="openSetup">2분 만에 채우기</button></div>`:''}
   ${S.inbox.length?`<section class="card stack" style="border-color:var(--accent)"><div class="row between"><h2>확인할 것 ${S.inbox.length}건</h2><span class="muted xs">올린 자료에서 찾았어요. 확인한 것만 글에 써요</span></div><div>${S.inbox.slice(0,UI.inboxOpen?50:3).map(inboxCard).join('')}</div>${S.inbox.length>3&&!UI.inboxOpen?`<button class="btn sm ghost" data-act="inboxAll">모두 보기</button>`:''}</section>`:''}
   ${S.guideHidden?'':`<section class="card stack" style="background:var(--info-soft);border-color:transparent">
@@ -615,15 +621,16 @@ function viewHome(){
       <div class="stack" style="gap:4px"><b>③ 올리기</b><span class="small"><b>승인</b>을 누르면 채널에 올라가요. 결과와 남은 일은 <b>현황</b>에서 봐요.</span></div>
     </div><p class="xs" style="color:var(--info)">메뉴판·전단지·예전 사진은 시간 날 때 맨 뒤 <b>자료함</b>에 모아두세요. 모일수록 글이 좋아져요.</p></section>`}
   <section class="card stack" style="border:2px solid var(--accent)">
-    <h2>오늘 찍은 사진이 있나요?</h2>
-    <p class="small muted">사진 한 장만 올리면 무엇을 알릴지 주제를 제안하고, 바로 글을 써요.</p>
-    <div class="row"><button class="btn primary lg" data-act="shoot" data-v="new">${ic('cam',20)}사진 찍기</button><button class="btn lg" data-act="uploadForPost">${ic('box',20)}앨범·파일에서 고르기</button></div>
+    <h2>사진 올리고, SNS 홍보까지 한 번에</h2>
+    <p class="small muted">사진과 저장한 가게 정보로 AI가 주제와 6개 채널 글을 함께 만들어요. 추가 질문에 답하지 않아도 돼요.</p>
+    <div class="row"><button class="btn primary lg" data-act="shoot" data-v="quick">${ic('cam',20)}찍고 SNS 만들기</button><button class="btn lg" data-act="uploadForPost" data-v="quick">${ic('box',20)}사진 골라 SNS 만들기</button></div>
+    <p class="xs muted">사진 최대 3장 · 블로그·인스타그램·쇼츠·스레드·페이스북·당근 · ${cap.sample?esc(PROVIDER_LABELS[UI.aiProvider])+'로 생성':'AI 연결 후 생성'} · 결과는 직접 확인하고 저장해요.</p>
   </section>
   <div class="row between" style="align-items:flex-end">
     <div class="stack" style="gap:4px"><span class="muted small">${d.getMonth()+1}월 ${d.getDate()}일 ${WD[d.getDay()]}요일 · ${esc(seasonHint())}</span><h1>사진이 없다면, 추천 주제로 시작해요</h1></div>
     <button class="btn sm" data-act="aiTopics">${ic('spark',16)}${t.ai?'다시 추천받기':'우리 가게 맞춤 추천'}</button>
   </div>
-  <p class="muted small" style="margin-top:-10px">${t.ai?'매장 정보·가게 이야기·자료함·최근 글을 보고 Claude가 골랐어요.':'기본 제안이에요. [우리 가게 맞춤 추천]을 누르면 자료함까지 보고 골라드려요.'} 카드 위 사진은 <b>자료함에 이미 있는 사진</b>이에요. 누르면 사진과 내용을 확인하는 화면으로 가요.</p>
+  <p class="muted small" style="margin-top:-10px">${t.ai?'매장 정보·가게 이야기·자료함·최근 글을 보고 AI가 골랐어요.':'기본 제안이에요. [우리 가게 맞춤 추천]을 누르면 자료함까지 보고 골라드려요.'} 카드 위 사진은 <b>자료함에 이미 있는 사진</b>이에요. 누르면 사진과 내용을 확인하는 화면으로 가요.</p>
   <div class="topics">${t.list.map((x,i)=>{const m=(x.matIds||[]).map(id=>M[id]).find(m=>m&&m.thumb);return `
     <button class="topic" data-act="pickTopic" data-i="${i}">
       <span class="th" style="position:relative">${m?`<img src="${m.thumb}" alt=""><span class="chip" style="position:absolute;left:8px;bottom:8px">자료함 사진</span>`:`<span class="stack" style="align-items:center;gap:4px">${ic('cam',28)}<span class="xs">맞는 사진이 없어요 · 다음 화면에서 찍을 수 있어요</span></span>`}</span>
@@ -696,10 +703,14 @@ function reqChipsHtml(){
       <div class="row" style="gap:6px">${r.options.map(o=>`<button class="tab" style="height:40px" aria-pressed="${has(o)}" aria-selected="${has(o)}" data-act="fieldChip" data-k="${r.k}" data-v="${esc(o)}">${esc(o)}</button>`).join('')}</div></div>`;}).join('');
 }
 function itemsHtml(){
-  const p=S.profile,T=IND[p.industry];
-  return `<div class="row between"><span class="lbl">${T.item} · 가격 ${T.itemOptional?'<span class="muted xs">(선택 · 수강료를 공개하지 않으면 비워두세요)</span>':p.menu.length?'<span class="chip good">✓</span>':'<span class="chip warn">필수 · 1개 이상</span>'}</span><button class="btn sm" data-act="menuPhoto">${ic('cam',16)}${T.sheet} 사진으로 채우기</button></div>
-    ${UI.menuBusy?`<div class="row small"><span class="spinner s"></span>${T.sheet}를 읽고 있어요…</div>`:''}
-    ${UI.menuReview?`<div class="banner warn" style="flex-direction:column;align-items:stretch"><b>사진에서 읽은 내용이에요. 맞는 것만 체크해 주세요.</b>${UI.menuReview.map((m,i)=>`<label class="row small" style="gap:8px"><input type="checkbox" data-mr="${i}" ${m.ok?'checked':''}> ${esc(m.name)} · ${m.price?won(m.price):'가격 못 읽음'}</label>`).join('')}<div class="row"><button class="btn sm dark" data-act="menuApply">체크한 것 넣기</button><button class="btn sm ghost" data-act="menuCancel">취소</button></div></div>`:''}
+  const p=S.profile,T=IND[p.industry],providers=UI.aiStatus?.providers||[];
+  return `<div class="row between"><span class="lbl">${T.item} · 가격 ${T.itemOptional?'<span class="muted xs">(선택 · 수강료를 공개하지 않으면 비워두세요)</span>':p.menu.length?'<span class="chip good">✓</span>':'<span class="chip warn">필수 · 1개 이상</span>'}</span><button class="btn sm" data-act="menuPhoto" ${UI.menuBusy?'disabled':''}>${ic('cam',16)}${T.sheet} 사진으로 채우기</button></div>
+    <div class="stack" style="gap:6px"><label class="lbl" for="menuProvider">${T.sheet} 사진을 읽을 AI</label><select id="menuProvider" class="inp" ${UI.aiLoading?'disabled':''}><option value="off" ${UI.aiProvider==='off'?'selected':''}>AI 선택</option>${providers.map(pr=>`<option value="${pr.id}" ${UI.aiProvider===pr.id?'selected':''} ${pr.configured?'':'disabled'}>${esc(pr.label)}${pr.configured?'':' · 연결 설정 필요'}</option>`).join('')}</select><p class="xs muted">사진을 읽은 뒤 이름·가격을 확인하고 등록해요. 선택한 사진은 해당 AI로 전달돼요.</p>${!providers.some(pr=>pr.configured)?'<p class="small muted">AI 연결 설정이 필요해요. 서비스 관리자에게 연결을 요청하거나 아래에서 직접 입력해 주세요.</p><button class="btn sm" data-act="refreshAi">AI 연결 상태 다시 확인</button>':''}</div>
+    ${UI.menuSource?`<div class="row small"><img src="${UI.menuSource.dataUrl}" alt="업로드한 ${T.sheet}" style="width:72px;height:90px;object-fit:contain;border-radius:8px"><span style="min-width:0;overflow-wrap:anywhere">${esc(UI.menuSource.name)}</span></div>`:''}
+    ${UI.menuBusy?`<div class="row small" role="status"><span class="spinner s"></span>${T.sheet} 사진을 읽고 있어요…<button class="btn sm" data-act="menuStop">읽기 취소</button></div>`:''}
+    ${UI.menuError?`<div class="banner warn" role="alert">${esc(UI.menuError)}</div>`:''}
+    ${UI.menuSource&&!UI.menuBusy&&!UI.menuReview?'<button class="btn sm" data-act="menuRetry">선택한 사진 다시 읽기</button>':''}
+    ${UI.menuReview?`<div class="stack" id="menuReview" style="padding:14px;border:1px solid var(--line);border-radius:12px"><b>사진에서 ${UI.menuReview.length}개를 읽었어요. 확인 후 등록해 주세요.</b><p class="small muted">이름과 가격을 바로 고칠 수 있어요. 가격을 못 읽은 항목은 체크하지 않았어요. 같은 메뉴는 가격만 갱신해요.</p>${UI.menuReview.map((m,i)=>`<div style="display:grid;grid-template-columns:24px minmax(0,1fr);gap:8px;align-items:center"><input type="checkbox" data-mr="${i}" ${m.ok?'checked':''} aria-label="${esc(m.name)} 등록"><div class="grid2" style="gap:8px"><label class="stack small" style="gap:4px">${i+1}. ${T.item} 이름<input class="inp" data-mr-name="${i}" value="${esc(m.name)}"></label><label class="stack small" style="gap:4px">가격(원)<input class="inp" inputmode="numeric" data-mr-price="${i}" value="${esc(m.price)}" placeholder="가격 확인 필요"></label></div></div>`).join('')}<div class="row"><button class="btn primary" data-act="menuApply">체크한 메뉴 등록</button><button class="btn sm ghost" data-act="menuCancel">취소</button></div></div>`:''}
     <div>${p.menu.map((m,i)=>`<div class="list-row"><span style="flex:1">${esc(m.name)}</span><b style="font-variant-numeric:tabular-nums">${won(m.price)}</b><button class="btn sm ghost" data-act="delMenu" data-i="${i}" aria-label="${esc(m.name)} 지우기">${ic('trash',16)}</button></div>`).join('')||`<p class="muted small">${T.sheet} 사진을 찍으면 AI가 읽어 채워요. 가격이 없으면 글에 가격을 쓰지 않아요.</p>`}</div>
     <div class="row" style="flex-wrap:nowrap"><label class="sr" for="mName">${T.item} 이름</label><input id="mName" class="inp" placeholder="${esc(T.itemPh)}"><label class="sr" for="mPrice">가격</label><input id="mPrice" class="inp" inputmode="numeric" placeholder="가격(원)" style="max-width:120px"><button class="btn" data-act="addMenu">추가</button></div>`;
 }
@@ -734,7 +745,7 @@ function viewSetup(){
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px">${steps.map((_,i)=>`<i style="height:6px;border-radius:9px;background:${i<st?'var(--accent)':'var(--line)'}"></i>`).join('')}</div>
     ${body}
     <div class="row between" style="margin-top:8px">${st>1?`<button class="btn" data-act="setupStep" data-v="${st-1}">이전</button>`:'<span></span>'}
-      ${can?`<button class="btn primary lg" data-act="${st<4?'setupStep':'setupDone'}" data-v="${st+1}">${st<4?'다음':'다 됐어요, 시작하기'}</button>`:`<button class="btn lg" disabled>${need}</button>`}</div>
+      <button id="setupNext" class="btn ${can?'primary ':''}lg" data-act="${st<4?'setupStep':'setupDone'}" data-v="${st+1}" ${can?'':'disabled'}>${can?(st<4?'다음':'다 됐어요, 시작하기'):need}</button></div>
   </div>`;
 }
 function viewStore(){
@@ -771,7 +782,45 @@ function viewStore(){
   <section class="card stack"><div class="row between"><h2>가게 이야기</h2><span class="muted small">오늘의 질문·사진 질문 답변</span></div>
     ${S.stories.length?S.stories.slice().reverse().map((s,ri)=>{const i=S.stories.length-1-ri;return `<div class="list-row" style="align-items:flex-start"><div class="stack" style="gap:2px;flex:1"><span class="muted small">Q. ${esc(s.q)}</span><span>${esc(s.a)}</span></div><button class="btn sm ghost" data-act="delStory" data-i="${i}" aria-label="지우기">${ic('trash',16)}</button></div>`;}).join(''):'<p class="muted small">오늘 화면의 질문에 답해 보세요.</p>'}
   </section>
+  ${aiSettingsCard()}
   ${channelsCard()}`;
+}
+function aiSettingsCard(){
+  const status=UI.aiStatus,selected=UI.aiProvider||'off';
+  const provider=status&&status.providers.find(p=>p.id===selected);
+  const busy=UI.aiLoading||UI.aiTesting;
+  return `<section class="card stack" aria-labelledby="aiSettingsTitle">
+    <div class="row between"><h2 id="aiSettingsTitle">AI 글쓰기 연결</h2><span class="chip ${cap.sample?'good':'warn'}">${UI.aiLoading?'확인 중':cap.sample?'사용 준비됨':'예시 모드'}</span></div>
+    <p class="small muted">글쓰기·수정·자료 분석에 사용할 AI를 선택해 주세요.</p>
+    <label class="lbl" for="aiProvider">사용할 AI</label>
+    <select id="aiProvider" class="inp" ${busy?'disabled':''}>
+      <option value="off" ${selected==='off'?'selected':''}>AI 사용 안 함 · 예시 문구</option>
+      ${['anthropic','openai'].map(id=>{const p=status&&status.providers.find(p=>p.id===id);return `<option value="${id}" ${selected===id?'selected':''}>${PROVIDER_LABELS[id]}${p&&p.configured?'':' · 설정 필요'}</option>`;}).join('')}
+    </select>
+    <p class="small muted">${provider&&provider.configured?'선택한 AI로 글을 만들 준비가 됐어요. 연결 확인으로 실제 응답을 확인할 수 있어요.':selected==='off'?'AI를 선택하면 연결된 모델로 글을 만들어요.':'아직 연결 설정이 완료되지 않았어요. 서비스 관리자에게 문의해 주세요.'}</p>
+    ${UI.aiError?`<p class="small" role="alert">${esc(UI.aiError)}</p>`:''}
+    ${UI.aiTestMessage?`<p class="small" role="status">${esc(UI.aiTestMessage)}</p>`:''}
+    <div class="row"><button class="btn" data-act="refreshAi" ${busy?'disabled':''}>설정 새로고침</button><button class="btn primary" data-act="testAi" ${busy||!provider?.configured?'disabled':''}>${UI.aiTesting?'연결 확인 중…':'연결 확인'}</button></div>
+    <p class="xs muted">연결 확인은 짧은 AI 요청 1회를 사용해요. AI 사용 중에는 입력한 가게 정보와 선택한 자료가 해당 AI에 전달돼요.</p>
+  </section>`;
+}
+function applyAiProvider(provider){
+  UI.aiProvider=provider;UI.aiError='';UI.aiTestMessage='';
+  const configured=UI.aiStatus&&UI.aiStatus.providers.some(p=>p.id===provider&&p.configured);
+  cap.sample=configured?createAiSample(provider):null;
+  UI.sampleOff=!cap.sample;UI.sampleKnown=true;
+}
+async function refreshAi(){
+  UI.aiLoading=true;render();
+  try{UI.aiStatus=await getAiConfiguration();applyAiProvider(resolveAiProvider(UI.aiStatus));}
+  catch(_){UI.aiError='AI 설정을 불러오지 못했어요. 잠시 후 새로고침해 주세요.';cap.sample=null;UI.sampleOff=true;UI.sampleKnown=true;}
+  finally{UI.aiLoading=false;render();runQueue();}
+}
+async function testAi(){
+  if(!cap.sample)return;UI.aiTesting=true;UI.aiError='';UI.aiTestMessage='';render();
+  try{await askJson('Return JSON only: {"connected":true}',{task:'connection',modelTier:'default'});UI.aiTestMessage=PROVIDER_LABELS[UI.aiProvider]+' 연결을 확인했어요.';}
+  catch(e){UI.aiError=e&&e.message||'AI 연결을 확인하지 못했어요.';}
+  finally{UI.aiTesting=false;render();}
 }
 function channelsCard(){
   return `<section class="card stack"><div class="row between"><h2>채널 연결</h2><span class="chip warn">시연 모드</span></div>
@@ -797,7 +846,7 @@ function newFlow(topic,matIds,kind){
 function viewCreate(){
   const f=UI.flow||(UI.flow=newFlow(''));
   if(f.stage==='input')return createInput(f);
-  if(f.stage==='gen')return `<div class="card stack" style="align-items:center;padding:44px 18px;text-align:center"><div class="spinner"></div><h2>${esc(f.genMsg||'채널별로 글을 쓰고 있어요')}</h2><p class="muted small">자료 ${f.mats.length}개와 가게 이야기 ${S.stories.length}개를 넣어 6개 채널 글을 따로 써요. 보통 20~40초 걸려요.</p>${usedStrip(f,false)}</div>`;
+  if(f.stage==='gen')return `<div class="card stack" style="align-items:center;padding:44px 18px;text-align:center"><div class="spinner"></div><h2>${esc(f.genMsg||'사진과 기본 정보로 SNS를 만들고 있어요')}</h2><p class="muted small">사진 속 내용과 가게 정보를 함께 읽고 6개 채널에 맞춰 써요. 보통 20~60초 걸려요.</p>${usedStrip(f,false)}<button class="btn" data-act="cancelGeneration">취소하고 사진 확인</button></div>`;
   if(f.stage==='review')return createReview(f);
   if(f.stage==='done')return createDone(f);
   return '';
@@ -813,6 +862,24 @@ const WHY=Object.fromEntries(Object.entries(IND).map(([k,v])=>[k,v.why]));
 const WHY_DETAIL=['이번 주만','할인·혜택','신규 모집','특강 개설','레벨 테스트','신규 할인','이벤트','이번 주 빈 시간'];
 const KIND_Q={메뉴:['이 메뉴는 언제부터, 왜 만들게 됐어요?','다른 곳과 다른 재료나 만드는 방법이 있나요?'],공간:['이 자리는 어떤 손님이 주로 앉나요?','이 공간에서 사장님이 가장 좋아하는 순간은요?'],과정:['이 과정은 얼마나 걸리고, 왜 직접 하세요?','손님이 모르는 이 과정의 비밀이 있나요?'],사람:['이 분은 어떤 일을 맡고 계세요?','손님들이 이 분을 좋아하는 이유는요?'],이벤트:['언제까지, 누구에게 어떤 혜택이에요?','이 이벤트를 하는 이유가 있나요?'],후기:['이 후기를 받았을 때 어떤 마음이었어요?','이 손님은 주로 무엇을 드세요?'],글:['이 내용 중 손님이 꼭 알았으면 하는 건요?','요즘 바뀐 점이 있나요?']};
 function photoQuestions(pm){if(!pm)return [];if(pm.questions&&pm.questions.length)return pm.questions;if(pm.status==='pending')return [];return KIND_Q[pm.kind]||KIND_Q['메뉴'];}
+function selectedPhotoMats(f){return [...new Set([f.photoMat,...f.mats].filter(Boolean))].map(id=>M[id]).filter(m=>m&&m.src==='photo'&&m.thumb).slice(0,3);}
+function promotionBasicsReady(){return !!(S.profile.name.trim()&&S.profile.area.trim());}
+function canGenerate(f){return !!f.topic.trim()||selectedPhotoMats(f).length>0;}
+function updateGenerateButton(){const f=UI.flow,b=$('[data-act="generate"]');if(!f||!b)return;b.disabled=!canGenerate(f);b.textContent=selectedPhotoMats(f).length?'사진·기본 정보로 SNS 만들기':f.topic.trim()?'AI로 채널별 글 만들기':'사진을 올리거나 주제를 적어주세요';}
+function promotionSettings(f){
+  const ps=UI.aiStatus?.providers||[];
+  const faces=selectedPhotoMats(f).filter(m=>m.faces&&!m.faceApproved);
+  return `<section class="card stack">
+    <div class="row between"><h2>사진과 함께 사용할 기본 정보</h2><span class="chip ${cap.sample?'good':'warn'}">${cap.sample?esc(PROVIDER_LABELS[UI.aiProvider])+' 연결됨':'AI 연결 필요'}</span></div>
+    <p class="small muted">가게 이름과 동네만 있어도 시작할 수 있어요. 등록한 메뉴·가격·특징도 함께 참고하며, 비어 있는 정보는 넣지 않아요.</p>
+    <div class="grid3"><label class="stack small" style="gap:4px">가게 이름<input class="inp" data-field="name" value="${esc(S.profile.name)}" placeholder="예) 온기카페"></label><label class="stack small" style="gap:4px">동네<input class="inp" data-field="area" value="${esc(S.profile.area)}" placeholder="예) 성수동"></label><label class="stack small" style="gap:4px">영업시간 (선택)<input class="inp" data-field="hours" value="${esc(S.profile.hours)}" placeholder="예) 매일 10:00–21:00"></label></div>
+    <label class="lbl" for="promotionProvider">홍보물을 만들 AI</label><select class="inp" id="promotionProvider" ${UI.aiLoading?'disabled':''}><option value="off" ${UI.aiProvider==='off'?'selected':''}>AI 선택</option>${ps.map(p=>`<option value="${p.id}" ${UI.aiProvider===p.id?'selected':''} ${p.configured?'':'disabled'}>${esc(p.label)}${p.configured?'':' · 연결 설정 필요'}</option>`).join('')}</select>
+    <p class="xs muted">선택한 사진과 가게 정보가 해당 AI로 전달돼요.</p>
+    ${!ps.some(p=>p.configured)?'<button class="btn sm" data-act="refreshAi">AI 연결 상태 다시 확인</button>':''}
+    ${f.generateError?`<div class="banner warn" role="alert"><span>${esc(f.generateError)} 사진과 입력 내용은 그대로 있어요.</span></div>`:''}
+    ${faces.length?`<div class="banner warn"><span>선택한 사진 ${faces.length}장에 얼굴이 보여요. 사용 동의를 받은 경우에만 홍보에 넣어주세요.</span><button class="btn sm" data-act="approvePhotoFaces">사진 속 사람들의 동의를 받았어요</button></div>`:''}
+  </section>`;
+}
 function ingredients(f){
   const pm=M[f.photoMat];const realPhoto=!!(f.photo&&(f.photoAck||!pm||pm.storePhoto!==false));
   const answers=Object.values(f.answers||{}).filter(x=>x&&x.trim()).length;
@@ -825,7 +892,7 @@ function ingredients(f){
   ];
 }
 function createInput(f){
-  const ph=f.photo,pm=M[f.photoMat],miss=missingInfo(),pending=pm&&pm.status==='pending';
+  const ph=f.photo,pm=M[f.photoMat],miss=missingInfo(),pending=pm&&pm.status==='pending'&&!pm.analysisOwner;
   const notStore=pm&&pm.storePhoto===false&&!f.photoAck;
   const qs=photoQuestions(pm);f.answers=f.answers||{};
   const ing=ingredients(f),okN=ing.filter(i=>i.ok).length;
@@ -833,8 +900,8 @@ function createInput(f){
   const kindLabel=m=>m.src==='text'?'글·후기':m.src==='doc'?'문서':'사진 설명';
   return `
   <div class="row"><button class="btn sm ghost" data-act="nav" data-v="home">${ic('back',16)}오늘로</button></div>
-  <div class="stack" style="gap:4px"><h1>글 준비</h1><p class="muted">사진을 확인하고, 사진에 대한 질문에 한 줄만 답해주세요. 그게 다른 가게 글과의 차이를 만들어요.</p></div>
-  ${miss.map(([t,v])=>`<div class="banner warn"><span>${t}</span><button class="btn sm" data-act="openSetup">채우러 가기</button></div>`).join('')}
+  <div class="stack" style="gap:4px"><h1>사진으로 SNS 만들기</h1><p class="muted">사진과 기본 정보만으로 만들 수 있어요. 주제와 추가 설명은 원하는 경우에만 적어주세요.</p></div>
+  ${promotionSettings(f)}
   <div class="grid2">
     <section class="card stack">
       <div class="row"><span class="chip ink">1</span><h2>대표 사진</h2></div>
@@ -848,10 +915,10 @@ function createInput(f){
     </section>
     <section class="card stack">
       <div class="row"><span class="chip ink">2</span><h2>무엇을 알릴까요?</h2></div>
-      <label class="lbl" for="fTopic">주제</label><input id="fTopic" class="inp" value="${esc(f.topic)}" placeholder="${pending?'사진을 보고 주제를 제안하는 중이에요…':notStore?'가게 사진을 올리면 주제를 제안해요':'예) 겨울 신메뉴 유자 라떼'}">
+      <label class="lbl" for="fTopic">주제 (선택 · 비워두면 사진으로 정해요)</label><input id="fTopic" class="inp" value="${esc(f.topic)}" placeholder="${pending?'사진을 보고 주제를 제안하는 중이에요…':notStore?'가게 사진을 올리면 주제를 제안해요':'예) 겨울 신메뉴 유자 라떼'}">
       ${f.topicAuto?'<span class="xs muted">사진을 보고 제안한 주제예요. 바꿔도 돼요.</span>':''}
       ${qs.length&&!notStore?`<div class="stack" style="gap:10px;background:var(--accent-soft);border-radius:14px;padding:14px">
-        <b style="color:var(--accent-text)">이 사진에 대해 30초만 알려주세요</b>
+        <b style="color:var(--accent-text)">더 알려주고 싶다면 (선택)</b>
         <span class="xs" style="color:var(--accent-text)">AI는 사진만 보고는 모르는 사실이에요. 답은 ‘가게 이야기’에도 저장돼 다음 글에 또 쓰여요.</span>
         ${qs.map((q,i)=>`<div class="stack" style="gap:4px"><label class="lbl" for="pq${i}" style="color:var(--ink)">${esc(q)}</label><div class="row" style="flex-wrap:nowrap"><input id="pq${i}" class="inp" data-pq="${i}" value="${esc(f.answers[i]||'')}" placeholder="짧게, 말하듯">${cap.dict?`<button class="btn mic ${dictTarget==='pq'+i?'on':''}" data-act="dict" data-t="pq${i}" aria-label="말로 답하기">${ic('mic',18)}</button>`:''}</div></div>`).join('')}
       </div>`:''}
@@ -880,15 +947,18 @@ function createInput(f){
     <div class="row between"><b>재료가 충분한가요? ${okN}/4</b><span class="small">${okN>=3?'좋아요, 우리 가게다운 글이 나올 거예요':'이대로도 쓸 수 있지만, 비어 있는 걸 채우면 훨씬 좋아져요'}</span></div>
     <div class="grid2" style="gap:6px">${ing.map(i=>`<span class="small"><span class="sev ${i.ok?'ok':'no'}" style="display:inline-grid;width:18px;height:18px;font-size:11px;margin-right:6px">${i.ok?'✓':'·'}</span><b>${i.label}</b>${i.ok?'':` <span class="muted xs">${i.hint}</span>`}</span>`).join('')}</div>
   </section>
-  <button class="btn primary lg block" data-act="generate" ${f.topic.trim()?'':'disabled'}>${f.topic.trim()?'이대로 글 만들기 · 20~40초':'2번에 주제를 적어주세요'}</button>`;
+  <button class="btn primary lg block" data-act="generate" ${canGenerate(f)?'':'disabled'}>${selectedPhotoMats(f).length?'사진·기본 정보로 SNS 만들기':f.topic.trim()?'AI로 채널별 글 만들기':'사진을 올리거나 주제를 적어주세요'}</button>
+  ${S.example?'<button class="btn ghost" data-act="generateExample">AI 없이 예시 결과만 보기</button>':''}`;
 }
 function createReview(f){
-  const td=todos(f);const c=f.tab,ch=CHMAP[c],d=f.drafts[c]||{body:''};
+  const td=todos(f);const c=f.tab,ch=CHMAP[c],d=f.drafts[c]||{body:''},quality=f.fellBack?[]:photoDraftQuality(f.drafts);
   return `
   <div class="row"><button class="btn sm ghost" data-act="backInput">${ic('back',16)}주제·자료</button></div>
   <h1>${esc(f.topic)}</h1>
-  ${f.fellBack?`<div class="banner warn"><span>Claude를 쓸 수 없어 기본 문구로 만들었어요. 직접 다듬어 주세요.</span></div>`:''}
+  ${f.fellBack?`<div class="banner warn"><span>직접 선택한 예시 문구예요. LLM이 생성한 결과가 아닙니다.</span></div>`:`<div class="banner good"><span><b>${esc(f.generatedBy||'AI')}로 6개 채널 홍보물을 만들었어요.</b> 사진 ${f.analyzedPhotos||0}장과 가게 기본 정보를 함께 사용했어요.</span></div>`}
   ${f.autoNote?`<div class="banner good"><span>${ic('check',16)} ${esc(f.autoNote)} 그대로 올려도 돼요.</span></div>`:''}
+  ${quality.length?`<details class="banner warn"><summary>게시 전 문구 확인 ${quality.length}개</summary><ul>${quality.map(q=>`<li>${esc(q)}</li>`).join('')}</ul><p class="small">아래 해당 채널 탭에서 직접 고치거나 ‘더 짧게’ 등을 눌러 다듬을 수 있어요.</p></details>`:''}
+  ${mediaStudioHtml(promotionBrief(f,M,S.profile))}
   ${td.length?todoCard(td):''}
   ${(f.paceDropped||[]).length?`<div class="banner info"><span>${f.paceDropped.map(x=>CHMAP[x].name).join('·')}은 오늘 이미 올려서 이번 글에선 뺐어요. 몰아서 올리면 노출이 떨어질 수 있어요.</span><button class="btn sm" data-act="when" data-v="tom">하루 뒤로 미루고 넣기</button></div>`:''}
   <div class="card stack" style="padding:14px"><div class="row between"><span class="lbl">이번 글에 쓴 자료</span><button class="btn sm" data-act="openPicker">자료 바꾸고 다시 쓰기</button></div>${usedStrip(f,false)}</div>
@@ -897,9 +967,10 @@ function createReview(f){
     <section class="card stack">
       <div class="row">${chMark(ch)}<b style="flex:1">${ch.name}</b><label class="row small" style="gap:6px"><input type="checkbox" data-sel="${c}" ${f.selected.includes(c)?'checked':''} ${S.conn[c]||c==='daangn'?'':'disabled'}> 올리기</label></div>
       ${ch.title?`<label class="lbl" for="dTitle">제목</label><input id="dTitle" class="inp" data-draft="title" value="${esc(d.title||'')}">`:''}
-      <label class="lbl" for="dBody">${c==='shorts'?'장면 자막 (줄마다 한 장면)':'본문 · 바로 고쳐도 돼요'}</label>
+      <label class="lbl" for="dBody">${c==='shorts'?'30초 영상 자막 (가운데 세 장면 · 줄마다 6초)':'본문 · 바로 고쳐도 돼요'}</label>
       <textarea id="dBody" class="inp" data-draft="body" rows="${c==='blog'?14:7}">${esc(d.body||'')}</textarea>
       <div class="row">
+        <button class="btn sm primary" data-act="copyDraft">${ic('copy',14)}${c==='shorts'?'자막':'홍보 글'} 복사</button>
         <button class="btn sm" data-act="rw" data-v="short" ${f.busy?'disabled':''}>더 짧게</button>
         <button class="btn sm" data-act="rw" data-v="friendly" ${f.busy?'disabled':''}>더 친근하게</button>
         <button class="btn sm" data-act="rw" data-v="detail" ${f.busy?'disabled':''}>우리 가게 이야기 더 넣기</button>
@@ -921,8 +992,9 @@ function todoCard(td){
 function snippet(text,token){const i=String(text).indexOf(token);if(i<0)return token;return String(text).slice(Math.max(0,i-18),i+token.length+18).replace(/\n/g,' ');}
 function previewHtml(c,d,f){
   const ch=CHMAP[c];
-  if(c==='shorts'){const lines=(d.body||'').split('\n').filter(Boolean);return `<div class="preview"><div class="pv-head">${chMark(ch,22)}이렇게 보여요</div><div class="row" style="padding:14px;align-items:flex-start;flex-wrap:nowrap"><div class="shorts-frame">${f.photo?`<img src="${f.photo}" alt="">`:''}<div class="shorts-cap"><span>${esc(lines[0]||'')}</span></div></div><div class="stack" style="gap:6px">${lines.slice(0,3).map((l,i)=>`<div class="small"><span class="muted xs">장면 ${i+1}</span><br><b>${esc(l)}</b></div>`).join('')}<span class="xs muted">사진+자막+음악으로 15초 영상을 만들어요</span></div></div></div>`;}
-  return `<div class="preview"><div class="pv-head">${chMark(ch,22)}이렇게 보여요</div>${f.photo&&ch.photo?`<div style="aspect-ratio:${c==='insta'?'1/1':'16/9'};background:var(--chip)"><img src="${f.photo}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></div>`:''}<div class="pv-body">${d.title?`<b style="font-size:16px">${esc(d.title)}</b>\n\n`:''}${esc(d.body||'')}</div></div>`;
+  const photos=promotionBrief(f,M,S.profile).photos;
+  if(c==='shorts'){const lines=[f.topic,...(d.body||'').split('\n').filter(Boolean).slice(0,3),S.profile.name+'에서 만나요'];return `<div class="preview"><div class="pv-head">${chMark(ch,22)}30초 쇼츠 · 5개 장면</div><div class="pv-short-story"><div class="shorts-frame">${photos[0]?`<img src="${esc(photos[0].src)}" alt="영상 첫 장면">`:''}<div class="shorts-cap"><span>${esc(f.topic)}</span></div></div><ol>${lines.map((l,i)=>`<li class="small"><span class="muted xs">${i*6}–${(i+1)*6}초</span> ${esc(l)}</li>`).join('')}</ol><span class="xs muted">위의 ‘30초 영상 만들기’를 누르면 재생하고 파일로 저장할 수 있어요.</span></div></div>`;}
+  return `<div class="preview"><div class="pv-head">${chMark(ch,22)}이렇게 보여요${photos.length?` · 사진 ${photos.length}장`:''}</div>${photos.length?`<div class="pv-gallery">${photos.map(p=>`<img src="${esc(p.src)}" alt="${esc(p.caption)}" loading="lazy">`).join('')}</div>`:''}<div class="pv-body">${d.title?`<b style="font-size:16px">${esc(d.title)}</b>\n\n`:''}${esc(d.body||'')}</div></div>`;
 }
 function publishPanel(f,td){
   const rows=CH.map(c=>{const on=f.selected.includes(c.id);const avail=c.id==='daangn'||c.id==='place'||S.conn[c.id];
@@ -1153,7 +1225,7 @@ function viewLanding(){
     <h2 class="sec" style="color:#fff">오늘 찍은 사진 한 장이<br>첫 마중물이 돼요</h2>
     <p class="lead" style="color:#D4EEF4;text-align:center">가게 정보 입력 2분, 그 다음부턴 하루 1분이면 충분해요.</p>
     <div class="row" style="gap:12px;justify-content:center;flex-wrap:wrap"><button class="bt" data-act="ldStart">${startTxt} ${arr}</button><button class="bt" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.5)" data-act="ldDemo">예시 가게 보기</button></div>
-    <span class="small" style="opacity:.8;margin-top:20px">마중물 · 시연 버전 · 글쓰기는 Claude가 하고, 채널 발행은 아직 흉내만 내요</span>
+    <span class="small" style="opacity:.8;margin-top:20px">마중물 · 시연 버전 · 글쓰기는 연결한 AI가 하고, 채널 발행은 아직 흉내만 내요</span>
   </div></section>
   </div>`;
 }
@@ -1196,10 +1268,15 @@ function initLanding(){
 function render(){
   renderNav();
   const v=UI.view;
+  if(UI.menuProfile&&UI.menuProfile!==S.profile)clearMenuImport();
+  if(UI.menuBusy&&!(v==='store'||(v==='setup'&&UI.setupStep===3)))stopMenuImport();
+  if(v!=='create'&&UI.flow?.stage==='gen'){generationGate.cancel();uploadVersion++;UI.flow.stage='input';}
+  if(v!=='create'||UI.flow?.stage!=='review')clearMediaStudio();
   document.body.classList.toggle('landing',v==='landing');
   $('#main').innerHTML=v==='landing'?viewLanding():v==='setup'?viewSetup():v==='home'?viewHome():v==='library'?viewLibrary():v==='create'?viewCreate():v==='status'?viewStatus():viewStore();
   if(v==='landing') initLanding(); else stopLanding();
   $('#modal').innerHTML=UI.modal==='picker'?pickerModal():UI.modal==='text'?textModal():UI.modal==='post'?postModal():'';
+  if(v==='create'&&UI.flow?.stage==='review')mountMediaCards(render);
 }
 function textModal(){return `<div class="modal-bg" data-act="closeModal"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="tmh" data-stop="1"><div class="row between"><h2 id="tmh">글·후기 붙여넣기</h2><button class="btn sm ghost" data-act="closeModal" aria-label="닫기">${ic('x',18)}</button></div><p class="small muted">예전에 쓴 블로그 글, 손님 후기, 공지 문구를 붙여넣으면 사실과 말투를 정리해 자료로 써요. 손님 실명·연락처는 지워주세요.</p><label class="sr" for="tmText">붙여넣을 글</label><textarea id="tmText" class="inp" rows="8"></textarea><div class="row" style="justify-content:flex-end"><button class="btn primary" data-act="saveText">자료함에 넣기</button></div></div></div>`;}
 
@@ -1207,18 +1284,27 @@ function textModal(){return `<div class="modal-bg" data-act="closeModal"><div cl
    이벤트
    ========================================================= */
 function syncInputs(){const f=UI.flow;if(!f)return;const t=$('#fTopic'),n=$('#fNote');if(t)f.topic=t.value;if(n)f.note=n.value;}
+function updateSetupNext(){
+  if(UI.view!=='setup'||UI.setupStep!==2)return;
+  const next=$('#setupNext');if(!next)return;
+  const p=S.profile,ready=!!(p.name.trim()&&p.area.trim()&&p.hours.trim());
+  next.disabled=!ready;next.classList.toggle('primary',ready);next.textContent=ready?'다음':'이름·동네·영업시간을 적어주세요';
+}
 document.addEventListener('input',e=>{
   const el=e.target;
   if(el.id==='qAns'){UI.qDraft=el.value;return;}
-  if(el.dataset.field){const k=el.dataset.field;S.profile[k]=el.value;if(k==='industry'){S.profile.banned=Array.from(new Set(IND[el.value].banned.concat((S.profile.banned||[]).filter(b=>!Object.values(IND).some(t=>t.banned.includes(b))))));S.topics=null;render();}S.example=false;persist();return;}
+  if(el.dataset.field){const k=el.dataset.field;S.profile[k]=el.value;if(k==='industry'){clearMenuImport();S.profile.banned=Array.from(new Set(IND[el.value].banned.concat((S.profile.banned||[]).filter(b=>!Object.values(IND).some(t=>t.banned.includes(b))))));S.topics=null;render();}S.example=false;persist();updateGenerateButton();updateSetupNext();return;}
+  if(el.dataset.mrName!=null&&UI.menuReview){UI.menuReview[Number(el.dataset.mrName)].name=el.value;return;}
+  if(el.dataset.mrPrice!=null&&UI.menuReview){UI.menuReview[Number(el.dataset.mrPrice)].price=el.value;return;}
   if(el.dataset.extra){S.profile.extra=S.profile.extra||{};S.profile.extra[el.dataset.extra]=el.value;persist();return;}
   if(el.dataset.draft&&UI.flow){const f=UI.flow;f.drafts[f.tab][el.dataset.draft]=el.value;clearTimeout(UI.rvT);UI.rvT=setTimeout(()=>{const pos=el.selectionStart,id=el.id;render();const n=document.getElementById(id);if(n){n.focus();try{n.setSelectionRange(pos,pos);}catch(_){}}},700);return;}
   if(el.id==='fWhyD'&&UI.flow){UI.flow.whyDetail=el.value;return;}
   if(el.dataset.pq!=null&&UI.flow){UI.flow.answers=UI.flow.answers||{};UI.flow.answers[el.dataset.pq]=el.value;return;}
-  if(el.id==='fTopic'||el.id==='fNote'){syncInputs();const b=document.querySelector('[data-act="generate"]');if(b&&el.id==='fTopic'){const ok=!!el.value.trim();b.disabled=!ok;b.textContent=ok?'채널별 초안 만들기':'주제를 먼저 적어주세요';}}
+  if(el.id==='fTopic'||el.id==='fNote'){syncInputs();updateGenerateButton();}
 });
 document.addEventListener('change',e=>{
   const el=e.target;
+  if(el.id==='aiProvider'||el.id==='promotionProvider'||el.id==='menuProvider'){generationGate.cancel();stopMenuImport();UI.menuError='';saveAiPreference(el.value);applyAiProvider(el.value);if(UI.flow)UI.flow.generateError='';S.topics=null;persist();render();runQueue();return;}
   if(el.dataset.sel){toggleSel(el.dataset.sel);}
   if(el.dataset.mr&&UI.menuReview){UI.menuReview[Number(el.dataset.mr)].ok=el.checked;}
   if(el.dataset.kind&&M[el.dataset.kind]){const m=M[el.dataset.kind];m.kind=el.value;m.status='ready';m.summary=m.summary==='정리 전 자료 · 종류를 골라주세요'?el.value+' 자료':m.summary;saveMat(m);render();}
@@ -1231,7 +1317,11 @@ document.addEventListener('click',async e=>{
   if(b.dataset.act==='closeModal'&&e.target.closest('[data-stop]')&&!e.target.closest('button'))return;
   if(b.tagName==='INPUT')return;
   const a=b.dataset.act,v=b.dataset.v;syncInputs();
+  if(['saveMediaCard','makeMediaVideo','makePhotoVideo','cancelMediaVideo'].includes(a)&&UI.flow?.stage==='review')mediaStudioHtml(promotionBrief(UI.flow,M,S.profile));
+  if(await handleMediaAction(a,v,render,toast))return;
   switch(a){
+    case 'refreshAi': await refreshAi(); break;
+    case 'testAi': await testAi(); break;
     case 'nav': if(v==='create'&&(!UI.flow||UI.flow.stage==='done'))UI.flow=newFlow(''); UI.view=v; UI.modal=null; render(); window.scrollTo(0,0); break;
     case 'reset': if(!UI.resetAsk){UI.resetAsk=true;toast('한 번 더 누르면 예시를 지우고 빈 가게로 시작해요');setTimeout(()=>UI.resetAsk=false,4000);break;} { const ind=S.profile.industry; S=baseState(); UI.indPicked=false; S.profile.industry='restaurant'; S.profile.banned=IND[S.profile.industry].banned.slice(); Object.keys(M).filter(id=>M[id].example).forEach(id=>deleteMat(id)); UI.resetAsk=false; UI.setupStep=1; persist(); UI.view='setup'; render(); window.scrollTo(0,0); } break;
     case 'aiTopics': await doTopics(b); break;
@@ -1242,14 +1332,14 @@ document.addEventListener('click',async e=>{
     case 'saveQ': { const t=(UI.qDraft||'').trim(); if(!t){toast('답을 먼저 적어주세요');break;} S.stories.push({q:curQuestion(),a:t,at:Date.now()}); S.qIndex=(S.qIndex||0)+1; UI.qDraft=''; S.example=false; persist(); render(); toast('가게 이야기에 저장했어요. 다음 글부터 들어가요'); break; }
     case 'dict': toggleDict(b.dataset.t); break;
     case 'upload': UI.uploadForPost=false; $('#fileLib').click(); break;
-    case 'uploadForPost': UI.uploadForPost=true; $('#fileLib').click(); break;
-    case 'shoot': UI.uploadForPost=true; if(v==='new'){UI.flow=newFlow('');} $('#fileCam').click(); break;
+    case 'uploadForPost': UI.uploadForPost=true; UI.uploadQuick=v==='quick'||UI.view!=='create'; $('#fileLib').click(); break;
+    case 'shoot': UI.uploadForPost=true; UI.uploadQuick=v==='quick'||v==='new'||UI.view!=='create'; $('#fileCam').click(); break;
     case 'goLanding': UI.landingByUser=true; UI.view='landing'; UI.modal=null; render(); window.scrollTo(0,0); break;
     case 'ldScroll': { const el=document.getElementById('ld-'+v); if(el) el.scrollIntoView({behavior:'smooth'}); break; }
     case 'ldStart': S.seenLanding=true; persist(); if(S.setupDone&&!S.example){UI.view='home';} else { if(S.example){const ind='restaurant'; S=baseState(); S.seenLanding=true; Object.keys(M).filter(id=>M[id].example).forEach(id=>deleteMat(id)); persist();} UI.indPicked=false; UI.setupStep=1; UI.view='setup'; } render(); window.scrollTo(0,0); break;
     case 'ldDemo': S.seenLanding=true; if(!S.example&&!S.setupDone){ S=exampleState(); S.seenLanding=true; if(!Object.keys(M).length)M=exampleMats(); if(!S.posts.length)S.posts=examplePosts(); } persist(); UI.view='home'; render(); window.scrollTo(0,0); break;
     case 'openSetup': { const r=reqStatus(); const p=S.profile; UI.setupStep=!p.name||!p.area||!p.hours?2:r.missing.some(x=>x.label==='차별점')&&r.missing.length===1?4:3; UI.view='setup'; render(); window.scrollTo(0,0); break; }
-    case 'setInd': UI.indPicked=true; S.profile.industry=v; S.profile.banned=Array.from(new Set(IND[v].banned.concat((S.profile.banned||[]).filter(b=>!Object.values(IND).some(t=>t.banned.includes(b)))))); S.topics=null; S.example=false; persist(); render(); break;
+    case 'setInd': clearMenuImport(); UI.indPicked=true; S.profile.industry=v; S.profile.banned=Array.from(new Set(IND[v].banned.concat((S.profile.banned||[]).filter(b=>!Object.values(IND).some(t=>t.banned.includes(b)))))); S.topics=null; S.example=false; persist(); render(); break;
     case 'setupStep': UI.setupStep=Number(v); render(); window.scrollTo(0,0); break;
     case 'setupDone': S.setupDone=true; S.example=false; persist(); UI.view='home'; render(); window.scrollTo(0,0); toast('준비 끝! 오늘 찍은 사진이나 추천 주제로 첫 글을 만들어 보세요'); break;
     case 'fieldChip': { const k=b.dataset.k; const r=IND[S.profile.industry].req.find(x=>x.k===k); S.profile.fields=S.profile.fields||{}; if(r.type==='one'){S.profile.fields[k]=S.profile.fields[k]===v?'':v;} else {const a=S.profile.fields[k]||[]; S.profile.fields[k]=a.includes(v)?a.filter(x=>x!==v):a.concat([v]);} S.example=false; persist(); render(); break; }
@@ -1268,11 +1358,13 @@ document.addEventListener('click',async e=>{
     case 'unarchive': { const m=M[v]; m.archived=false; m.lastUsed=Date.now(); if(m.ends&&new Date(m.ends).getTime()<Date.now())m.ends=null; saveMat(m); render(); break; }
     case 'delMat': if(UI.delAsk!==v){UI.delAsk=v;toast('한 번 더 누르면 지워요');setTimeout(()=>UI.delAsk=null,3000);break;} await deleteMat(v); UI.delAsk=null; render(); break;
     case 'tone': S.profile.tone=v; persist(); render(); break;
-    case 'addMenu': { const n=$('#mName').value.trim(),pr=Number(($('#mPrice').value||'').replace(/[^\d]/g,'')); if(!n||!pr){toast('메뉴 이름과 가격을 모두 적어주세요');break;} S.profile.menu.push({name:n,price:pr}); S.example=false; persist(); render(); break; }
+    case 'addMenu': { const n=$('#mName').value.trim(),pr=parseMenuPrice($('#mPrice').value); if(!n||pr===null){toast('메뉴 이름과 올바른 원 단위 가격을 적어주세요');break;} S.profile.menu=applyMenuImport(S.profile.menu,[{name:n,price:String(pr),ok:true}]).menu; S.example=false; persist(); render(); break; }
     case 'delMenu': S.profile.menu.splice(Number(b.dataset.i),1); persist(); render(); break;
-    case 'menuPhoto': if(!cap.sample){toast('Claude 연결이 있어야 메뉴판을 읽어요. 직접 입력해 주세요');break;} $('#fileMenu').click(); break;
-    case 'menuApply': UI.menuReview.filter(m=>m.ok&&m.price).forEach(m=>{const cur=S.profile.menu.find(x=>x.name===m.name);if(cur)cur.price=m.price;else S.profile.menu.push({name:m.name,price:m.price});}); UI.menuReview=null; persist(); render(); toast('체크한 메뉴를 넣었어요'); break;
-    case 'menuCancel': UI.menuReview=null; render(); break;
+    case 'menuPhoto': $('#fileMenu').click(); break;
+    case 'menuRetry': await readMenuPhoto(); break;
+    case 'menuStop': stopMenuImport();render();break;
+    case 'menuApply': {try{const result=applyMenuImport(S.profile.menu,UI.menuReview||[]);S.profile.menu=result.menu;S.example=false;clearMenuImport();persist();render();toast(`${result.added}개 메뉴를 추가하고 ${result.updated}개 가격을 갱신했어요`);}catch(err){UI.menuError=err.message;render();}break;}
+    case 'menuCancel': clearMenuImport(); render(); break;
     case 'editStr': UI.storeEdit={i:Number(b.dataset.i)}; render(); { const se=$('#strEdit'); if(se)se.focus(); } break;
     case 'cancelEdit': UI.storeEdit=null; render(); break;
     case 'saveStr': { const t=$('#strEdit').value.trim(); if(t){S.profile.strengths[Number(b.dataset.i)]=t;persist();} UI.storeEdit=null; render(); toast('저장했어요. 다음 글부터 반영돼요'); break; }
@@ -1288,6 +1380,10 @@ document.addEventListener('click',async e=>{
     case 'pickPhotoOnly': { UI.modal=null; setPhotoFromMats(UI.flow); render(); break; }
     case 'unuse': { const f=UI.flow; f.mats=f.mats.filter(x=>x!==v); setPhotoFromMats(f); render(); break; }
     case 'generate': await doGenerate(); break;
+    case 'generateExample': await doGenerate(true); break;
+    case 'cancelGeneration': generationGate.cancel();uploadVersion++;UI.flow.stage='input';UI.flow.generateError='';render();break;
+    case 'approvePhotoFaces': selectedPhotoMats(UI.flow).filter(m=>m.faces).forEach(m=>{m.faceApproved=true;m.excluded=false;saveMat(m);S.inbox=S.inbox.filter(x=>!(x.type==='face'&&x.mat===m.id));});UI.flow.generateError='';persist();render();break;
+    case 'copyDraft': {const d=UI.flow.drafts[UI.flow.tab];try{await navigator.clipboard.writeText((d.title?d.title+'\n\n':'')+d.body);toast('홍보 글을 복사했어요. SNS에 붙여넣으세요.');}catch(_){toast('복사가 허용되지 않았어요. 본문을 선택해 복사해 주세요.');}break;}
     case 'backInput': UI.flow.stage='input'; render(); break;
     case 'tab': UI.flow.tab=v; render(); break;
     case 'toggleSel': toggleSel(v); break;
@@ -1321,7 +1417,7 @@ function resolveInbox(id,yes){
     if(it.type==='priceChange'){const cur=S.profile.menu.find(x=>x.name===it.item);if(cur)cur.price=it.to;toast(`${it.item} 가격을 ${won(it.to)}로 바꿨어요`);}
     if(it.type==='menuNew'){S.profile.menu.push({name:it.item,price:it.to});toast('메뉴를 넣었어요');}
     if(it.type==='event'&&m){const el=document.getElementById('ev'+id);m.ends=el&&el.value?el.value:null;m.kind='이벤트';if(!m.ends){toast('끝나는 날을 넣어야 끝난 이벤트를 홍보하지 않아요');return;}saveMat(m);toast('이벤트를 저장했어요. 끝나면 자동으로 안 써요');}
-    if(it.type==='face'&&m){m.excluded=false;m.faces=true;saveMat(m);}
+    if(it.type==='face'&&m){m.excluded=false;m.faces=true;m.faceApproved=true;saveMat(m);}
   } else {
     if(it.type==='face'&&m){m.excluded=true;saveMat(m);}
   }
@@ -1336,29 +1432,50 @@ async function startFromTopic(t){
   render();window.scrollTo(0,0);
 }
 async function doTopics(btn){
-  if(!cap.sample){toast('Claude 연결이 허용되지 않아 기본 제안을 보여드려요');return;}
+  if(!cap.sample){toast('AI가 꺼져 있어 기본 제안을 보여드려요');return;}
   btn.disabled=true;btn.textContent='고르는 중…';
   try{const list=await aiTopics();S.topics={date:today(),list};persist();}
   catch(e){toast(e&&e.code==='rate_limited'?'잠시 후 다시 눌러주세요':'추천을 못 받았어요. 기본 제안을 보여드려요');}
   render();
 }
-async function doGenerate(){
-  const f=UI.flow;if(!f.topic.trim())return;
-  const pm=M[f.photoMat];const qs=photoQuestions(pm);f.qa=[];Object.entries(f.answers||{}).forEach(([i,a])=>{if(a&&a.trim()&&qs[i]){f.qa.push({q:qs[i],a:a.trim()});if(!S.stories.some(x=>x.a===a.trim()))S.stories.push({q:qs[i],a:a.trim(),at:Date.now()});}});if(f.qa.length)persist();
-  if(!f.mats.length){f.stage='gen';f.genMsg='주제에 맞는 자료를 고르는 중';render();f.mats=await selectMaterials(f.topic,f.kind);setPhotoFromMats(f);}
-  f.stage='gen';f.genMsg='채널별로 글을 쓰고 있어요';render();window.scrollTo(0,0);
-  let r=null;
-  if(cap.sample){try{r=await aiDrafts(f);}catch(e){r=null;if(e&&e.code==='rate_limited')toast('요청이 많아요. 기본 문구로 만들었어요');}}
-  if(!r||!r.blog){r=fallbackDrafts(f);f.fellBack=true;}else f.fellBack=false;
-  const drafts={};DRAFT_CH.forEach(c=>{const x=r[c]||{};drafts[c]={title:x.title||'',body:String(x.body||'')};});
-  f.drafts=drafts;f.genMsg='매장 정보와 맞는지 검사하는 중';render();
-  await autoFixAll(f);
-  f.orig=JSON.parse(JSON.stringify(f.drafts));f.stage='review';f.tab='blog';f.startedAt=Date.now();
-  render();window.scrollTo(0,0);
+async function doGenerate(exampleOnly=false){
+  const f=UI.flow;if(!f||!canGenerate(f)||(f.job&&generationGate.isCurrent(f.job)))return;
+  f.generateError='';
+  if(!exampleOnly&&!promotionBasicsReady()){f.generateError='가게 이름과 동네를 먼저 적어주세요.';f.stage='input';render();return;}
+  if(!exampleOnly&&!cap.sample){f.generateError=UI.aiLoading?'AI 연결을 확인하고 있어요. 잠시 후 다시 눌러주세요.':'사용할 AI를 선택해 주세요. 연결된 AI로 실제 홍보물을 만들어요.';f.stage='input';render();return;}
+  const photos=selectedPhotoMats(f),blocked=photos.find(m=>m.archived||m.excluded||(m.faces&&!m.faceApproved)||(m.storePhoto===false&&!(f.photoAck&&m.id===f.photoMat)));
+  if(!exampleOnly&&blocked){f.generateError=blocked.faces&&!blocked.faceApproved?'사진 속 사람의 동의를 확인하거나 해당 사진을 빼주세요.':'선택한 사진 중 홍보에 사용할 수 없는 자료가 있어요. 가게 사진으로 바꿔주세요.';f.stage='input';render();return;}
+  const pm=M[f.photoMat],qs=photoQuestions(pm);f.qa=[];Object.entries(f.answers||{}).forEach(([i,a])=>{if(a&&a.trim()&&qs[i]){f.qa.push({q:qs[i],a:a.trim()});if(!S.stories.some(x=>x.a===a.trim()))S.stories.push({q:qs[i],a:a.trim(),at:Date.now()});}});if(f.qa.length)persist();
+  const job=generationGate.start();f.job=job;
+  const sample=cap.sample,provider=UI.aiProvider;
+  const current=()=>generationGate.isCurrent(job)&&UI.flow===f&&UI.view==='create';
+  f.stage='gen';f.genMsg=photos.length?'사진과 기본 정보를 함께 읽어 SNS를 만들고 있어요':'채널별로 글을 쓰고 있어요';render();window.scrollTo(0,0);
+  try{
+    let r;
+    if(exampleOnly){f.topic=f.topic||'우리 가게 소개';r=fallbackDrafts(f);}
+    else if(photos.length){
+      const prompt=buildPhotoPromotionPrompt({storeInfo:profileText(),topic:f.topic,note:[f.note,...f.qa.map(x=>x.a)].filter(Boolean).join('\n'),audience:f.aud||[],reason:[...(f.why||[]),f.whyDetail].filter(Boolean).join(' · '),materials:matsText(f.mats.filter(id=>!photos.some(m=>m.id===id))),stories:S.stories.map(s=>s.a),photoCount:photos.length});
+      const images=await Promise.all(photos.map(m=>photoBlob(m.thumb)));if(!current())return;
+      const result=await sample.json(prompt,{task:'photoPromotion',modelTier:'default',images,signal:job.signal});if(!current())return;
+      result.photos.forEach(info=>{const m=photos[info.index];Object.assign(m,{summary:info.summary,kind:info.kind,storePhoto:info.storePhoto,faces:info.faces,menu:info.menu.filter(n=>S.profile.menu.some(x=>x.name===n)),status:'ready',analysisOwner:null});if(m.faces&&!m.faceApproved){m.excluded=true;addInbox({type:'face',mat:m.id});}saveMat(m);});
+      f.topic=f.topic.trim()||result.topic;f.topicAuto=true;
+      if(photos.some(m=>(m.faces&&!m.faceApproved)||(m.storePhoto===false&&!(f.photoAck&&m.id===f.photoMat))))throw new Error('사진을 분석했어요. 얼굴 사용 동의를 확인하거나 가게와 관련된 사진으로 바꾼 뒤 다시 만들어 주세요.');
+      r=formatPhotoDrafts(result.drafts);f.analyzedPhotos=photos.length;
+      const quality=photoDraftQuality(r);
+      if(quality.length){f.genMsg='채널별 길이·말투·방문 안내를 다듬고 있어요';render();try{r=formatPhotoDrafts(await sample.json(buildPhotoRevisionPrompt(prompt,{...result,drafts:r},quality),{task:'drafts',modelTier:'default',signal:job.signal}));}catch(e){if(e?.name==='AbortError')throw e;}if(!current())return;}
+    }else{r=await aiDrafts(f,job.signal);if(!current())return;f.analyzedPhotos=0;}
+    const drafts={};DRAFT_CH.forEach(c=>{const x=r[c]||{};drafts[c]={title:x.title||'',body:String(x.body||'')};});
+    f.drafts=drafts;f.fellBack=exampleOnly;f.generatedBy=exampleOnly?'':PROVIDER_LABELS[provider];f.genMsg='가격·영업시간·금지 표현을 확인하고 있어요';render();
+    await autoFixAll(f,false);if(!current())return;
+    f.orig=JSON.parse(JSON.stringify(f.drafts));f.stage='review';f.tab='insta';f.startedAt=Date.now();f.generateError='';UI.aiError='';render();window.scrollTo(0,0);
+  }catch(e){
+    if(!current())return;
+    f.stage='input';f.generateError=e?.message||'AI 홍보물을 만들지 못했어요. 다시 시도해 주세요.';UI.aiError=f.generateError;render();window.scrollTo(0,0);
+  }finally{generationGate.finish(job);if(f.job===job)f.job=null;}
 }
 async function doRewrite(instruction,issues){
   const f=UI.flow,c=f.tab;
-  if(!cap.sample){toast('Claude 연결이 있어야 자동으로 고쳐요. 직접 고쳐주세요');return;}
+  if(!cap.sample){toast('AI 연결이 있어야 자동으로 고쳐요. 직접 고쳐주세요');return;}
   f.busy='고치는 중…';render();
   try{const r=await aiRewrite(c,f.drafts[c],instruction,issues,f.mats);if(r&&r.body){f.drafts[c]={title:r.title!=null?r.title:f.drafts[c].title,body:r.body};contentProblems(f.drafts[c]).forEach(pb=>applyFix(f.drafts[c],pb,'replace'));}}
   catch(_){toast('못 고쳤어요. 잠시 후 다시 눌러주세요');}
@@ -1378,20 +1495,52 @@ function doApprove(){
 
 /* 파일 입력 */
 async function onUpload(files){
-  const before=new Set(Object.keys(M));
-  await ingestAny(files);
-  if(UI.uploadForPost){const added=Object.keys(M).filter(id=>!before.has(id)).map(id=>M[id]).filter(m=>m.src==='photo');if(added[0]){UI.lastShotId=added[0].id;if(!UI.flow)UI.flow=newFlow('');const f=UI.flow;const rp=added[0];if(!f.mats.includes(rp.id))f.mats.unshift(rp.id);f.photo=rp.thumb;f.photoMat=rp.id;UI.view='create';if(f.stage!=='review')f.stage='input';render();window.scrollTo(0,0);}}
-  UI.uploadForPost=false;
+  const forPost=!!UI.uploadForPost,quick=!!UI.uploadQuick;UI.uploadForPost=false;UI.uploadQuick=false;
+  if(!forPost){await ingestAny(files);return;}
+  const images=[...files].filter(file=>file.type.startsWith('image/'));
+  if(!images.length){toast('홍보에 사용할 사진 파일을 골라주세요.');return;}
+  generationGate.cancel();const version=++uploadVersion;
+  const f=quick||!UI.flow?newFlow(''):UI.flow;UI.flow=f;f.quickPhoto=true;f.generateError='';f.stage='gen';f.genMsg='사진을 준비하고 있어요';UI.view='create';render();
+  if(images.length>3)toast('한 번에 3장까지 만들어요. 먼저 고른 3장을 사용해요.');
+  const ids=await ingestAny(images.slice(0,3),true);
+  if(version!==uploadVersion||UI.flow!==f||UI.view!=='create')return;
+  if(!ids.length){f.stage='input';f.generateError='사진을 열지 못했어요. 15MB 이하 JPG·PNG·WebP 사진을 골라주세요.';render();return;}
+  f.mats=[...ids,...f.mats.filter(id=>M[id]?.src!=='photo')];f.photoMat=ids[0];f.photo=M[ids[0]].thumb;f.photoAck=false;f.drafts=null;f.orig=null;
+  if(!quick){f.topic='';f.answers={};f.topicAuto=false;}
+  UI.lastShotId=ids[0];f.stage='input';render();window.scrollTo(0,0);
+  if(quick)await doGenerate();
 }
 $('#fileLib').addEventListener('change',async e=>{const files=[...e.target.files];e.target.value='';if(files.length)await onUpload(files);});
 $('#fileCam').addEventListener('change',async e=>{const files=[...e.target.files];e.target.value='';if(files.length)await onUpload(files);});
-$('#fileMenu').addEventListener('change',async e=>{
-  const file=e.target.files[0];e.target.value='';if(!file)return;
-  UI.menuBusy=true;render();
-  try{const url=URL.createObjectURL(file);const img=await loadImg(url);URL.revokeObjectURL(url);const blob=dataUrlToBlob(drawTo(img,1600).toDataURL('image/jpeg',0.85));const r=await aiMenu(blob);UI.menuReview=(r.items||[]).filter(x=>x&&x.name).map(x=>({name:String(x.name),price:Number(x.price)||0,ok:!!Number(x.price)}));if(!UI.menuReview.length)toast('메뉴를 못 읽었어요. 직접 입력해 주세요');}
-  catch(err){toast(err&&err.code==='no_images'?'이 화면에서는 사진 읽기가 안 돼요. 직접 입력해 주세요':'메뉴판을 못 읽었어요. 직접 입력해 주세요');}
-  UI.menuBusy=false;render();
-});
+function stopMenuImport(){menuGenerationGate.cancel();UI.menuBusy=false;}
+function clearMenuImport(){stopMenuImport();UI.menuReview=null;UI.menuSource=null;UI.menuProfile=null;UI.menuError='';}
+async function readMenuPhoto(file){
+  const job=menuGenerationGate.start(),profile=S.profile,industry=profile.industry,sample=cap.sample;
+  const current=()=>menuGenerationGate.isCurrent(job)&&S.profile===profile&&S.profile.industry===industry;
+  UI.menuProfile=profile;UI.menuBusy=true;UI.menuError='';UI.menuReview=null;if(file)UI.menuSource=null;render();
+  try{
+    if(file){
+      if(!file.type.startsWith('image/')||file.size>15*1024*1024)throw new Error('15MB 이하의 메뉴판 사진을 골라주세요.');
+      const url=URL.createObjectURL(file);let img;
+      try{img=await loadImg(url);}catch(_){throw new Error('사진을 열지 못했어요. JPG·PNG·WebP 사진으로 다시 올려주세요.');}finally{URL.revokeObjectURL(url);}
+      if(!current())return;
+      let dataUrl=drawTo(img,1600).toDataURL('image/jpeg',0.85);
+      if(dataUrlToBlob(dataUrl).size>2_000_000)dataUrl=drawTo(img,1280).toDataURL('image/jpeg',0.7);
+      UI.menuSource={dataUrl,name:file.name};render();
+    }
+    if(!current())return;
+    if(!UI.menuSource)throw new Error('메뉴판 사진을 먼저 골라주세요.');
+    if(!sample)throw new Error(UI.aiLoading?'AI 연결을 확인하고 있어요. 잠시 후 다시 읽기를 눌러주세요.':'메뉴판을 읽을 AI를 선택한 뒤 선택한 사진 다시 읽기를 눌러주세요.');
+    const T=IND[industry];
+    const result=await sample.json(buildMenuImportPrompt(T.sheet,T.item),{task:'menu',modelTier:'default',images:[dataUrlToBlob(UI.menuSource.dataUrl)],signal:job.signal});
+    if(!current())return;
+    const items=menuReviewItems(result.items);
+    if(!items.length)throw new Error('사진에서 메뉴를 찾지 못했어요. 메뉴 이름과 가격이 잘 보이도록 다시 찍거나 아래에서 직접 입력해 주세요.');
+    UI.menuReview=items;
+  }catch(err){if(current())UI.menuError=err?.message||'메뉴판을 읽지 못했어요. AI 연결을 확인하거나 다른 사진으로 다시 시도해 주세요.';}
+  finally{if(current()){UI.menuBusy=false;menuGenerationGate.finish(job);render();}}
+}
+$('#fileMenu').addEventListener('change',async e=>{const file=e.target.files[0];e.target.value='';if(file)await readMenuPhoto(file);});
 
 /* 받아쓰기 */
 async function toggleDict(target){
@@ -1418,12 +1567,14 @@ function fixState(){if(!IND[S.profile.industry])S.profile.industry='restaurant';
 fixState();
 try{const lm=localStorage.getItem('gk2-mats');if(lm)M=JSON.parse(lm)||{};}catch(_){M={};}
 if(S.example&&!Object.keys(M).length)M=exampleMats();
+// Upgrade only built-in sample illustrations; user-uploaded images stay intact.
+Object.values(M).filter(m=>m.example).forEach(m=>{const file=m.summary==='유자 라떼 한 잔, 위에 유자 슬라이스'?'yuja-latte':m.summary==='유자를 직접 썰어 설탕과 병에 담는 모습'?'yuja-preserve':m.summary==='오후 햇살이 드는 창가 2인석'?'cafe-window':null;if(file&&m.thumb?.startsWith('data:')){m.thumb='/media/demo/'+file+'.png';saveMat(m);}});
 if(S.example&&!S.posts.length)S.posts=examplePosts();
 if(!S.seenLanding)UI.view='landing';
 render();
-/* Claude 전용 기능(cap.sample, cap.db, claude.use) 없음: 원본에서 AI가 꺼졌을 때의 동작 그대로 */
-UI.sampleOff=true;UI.sampleKnown=true;
+/* API 키는 서버에서만 읽고, 브라우저에는 공급자 설정 여부만 가져온다. */
+UI.sampleOff=true;UI.sampleKnown=false;
 if(S.seenLanding&&UI.view==='landing'&&!UI.landingByUser)UI.view='home';
-housekeeping();render();runQueue();
+housekeeping();render();refreshAi();
 
 }

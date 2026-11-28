@@ -1,5 +1,17 @@
 # Majungmul
 
+## AI API 연결
+
+Claude·ChatGPT 연동 구조와 설정은 [AI 연결 안내](docs/ai-integration.md)를 참고한다.
+아래 시안 이관 기록의 외부 API 제외 조건은 초기 버전에 해당한다.
+현재는 서버 환경 설정 후 **우리 가게 → AI 글쓰기 연결**에서 공급자를 선택할 수 있다.
+
+참고 영상 형태의 제목·이미지·한국어 내레이션·자막·배경음악 영상은
+[30초 홍보 숏츠 안내](docs/reference-shorts.md)를 참고한다. 대본은 ChatGPT/Claude,
+이미지와 음성은 OpenAI를 사용하며 FAL 키 없이 MP4로 만들 수 있다.
+
+## 초기 시안 이관 기록
+
 첨부한 majungmul-app.html 은 완성된 시안이고, LOVABLE_HANDOFF.md 는 안내서야.
 
 먼저 두 파일을 프로젝트의 reference/ 폴더에 그대로 저장해줘(작업 중에 계속 다시 볼 수 있게). 그다음 둘 다 끝까지 읽어줘.

@@ -1,0 +1,18 @@
+{
+  "tool": "Built-in image_gen",
+  "purpose": "AI-generated fictional cafe samples, not real store photography",
+  "prompts": [
+    [
+      "latte",
+      "Use case: photorealistic-natural. Create a portrait 4:5 editorial food photograph for a fictional Korean neighborhood cafe demo. A clear glass of creamy hot yuja citrus latte, pale golden citrus preserve visible near the bottom, topped with a very thin yuja slice, warm wooden table beside a large sunlit window. Close up, subject centered with generous room at top and bottom for later typography, naturally appetizing texture, soft winter afternoon sunlight, warm amber and cream palette, realistic optics. No text, no logos, no signage, no watermark. This will be labeled as an AI demo in the app."
+    ],
+    [
+      "preserve",
+      "Use case: photorealistic-natural. Portrait 4:5 editorial photograph for a fictional Korean cafe. Close-up of freshly sliced yellow yuja citrus and a clear open glass jar containing citrus slices layered with granulated sugar on a clean wooden kitchen worktop, a stainless spoon and a small simple ceramic bowl nearby. This shows the preparation of Korean yuja preserve. No people or hands. Natural warm window light, tactile juicy citrus skin, same warm amber cream visual style as a cozy cafe. Centered ingredients with room top/bottom for later text. No text, labels, logos or watermark."
+    ],
+    [
+      "window",
+      "Use case: photorealistic-natural. Portrait 4:5 editorial interior photograph for a fictional Korean neighborhood cafe demo. Cozy small cafe window seating area with warm oak tables and two simple wooden chairs, natural linen curtains, winter afternoon sunlight creating long soft shadows, subtle green plant, quiet welcoming atmosphere. Focus on the window seating, realistic architectural photography, warm amber and cream color grading. No people, no text, no signs, no branding, no watermark. Generous composition for typography added later."
+    ]
+  ]
+}

@@ -9,6 +9,7 @@ WorkingDirectory=/srv/majungmul/current
 Environment=NODE_ENV=production
 Environment=HOST=127.0.0.1
 Environment=PORT=3000
+EnvironmentFile=-/etc/majungmul/ai.env
 ExecStart=/usr/bin/node /srv/majungmul/current/server/index.mjs
 Restart=always
 RestartSec=3
