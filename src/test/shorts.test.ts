@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { EventEmitter } from "node:events";
 import type WebSocket from "ws";
 import {
@@ -13,7 +13,7 @@ import {
   shortsConfiguration,
   speechMatches,
 } from "../lib/ai/shorts-service.server";
-import { shortsTimeline } from "../majungmul/shorts-renderer";
+import { paintShortsFrame, shortsTimeline } from "../majungmul/shorts-renderer";
 
 const env = { LLM_ENABLED: "true", OPENAI_API_KEY: "test-private-key" };
 const facts = {
@@ -34,6 +34,43 @@ const script = {
 };
 
 describe("reference shorts planning and timing", () => {
+  it("renders a guest closing scene without an incomplete store invitation", () => {
+    const fillText = vi.fn();
+    const ctx = {
+      fillText,
+      measureText: (text: string) => ({ width: text.length * 20 }),
+      fillRect: vi.fn(),
+      save: vi.fn(),
+      beginPath: vi.fn(),
+      rect: vi.fn(),
+      clip: vi.fn(),
+      drawImage: vi.fn(),
+      restore: vi.fn(),
+    };
+    const canvas = { width: 720, height: 1280, getContext: () => ctx };
+    const project = {
+      name: "",
+      area: "",
+      script,
+      narrated: false,
+      assets: Array.from({ length: 6 }, () => ({ image: "/photo.jpg", ai: false })),
+    };
+    const images = Array.from({ length: 6 }, () => ({ width: 720, height: 720 }));
+    const draw = () =>
+      paintShortsFrame(
+        canvas as unknown as HTMLCanvasElement,
+        project,
+        images as HTMLImageElement[],
+        shortsTimeline([0, 0, 0, 0, 0, 0]),
+        29,
+      );
+    draw();
+    expect(fillText).toHaveBeenCalledWith(script.accent, 360, 1100);
+    expect(fillText).not.toHaveBeenCalledWith("에서 만나요", 360, 1100);
+    project.name = "온기카페";
+    draw();
+    expect(fillText).toHaveBeenCalledWith("온기카페에서 만나요", 360, 1100);
+  });
   it("requires six bounded scenes and does not accept overlong speech", () => {
     expect(shortsScriptSchema.safeParse(script).success).toBe(true);
     expect(
@@ -81,6 +118,22 @@ describe("reference shorts planning and timing", () => {
 });
 
 describe("shorts APIs without a FAL key", () => {
+  it("accepts guest image requests without inventing store facts", async () => {
+    const guestFacts = { ...facts, name: "", area: "", hours: "", menus: [] };
+    const fetcher = vi.fn(async () => Response.json({ data: [{ b64_json: "AAAA" }] }));
+    const result = await generateShortsImage(
+      {
+        facts: guestFacts,
+        visual: "사진 속 음료를 가까이 보여준다",
+        image: "data:image/jpeg;base64,AAAA",
+      },
+      env,
+      fetcher,
+    );
+    expect(result.ok).toBe(true);
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(shortsScriptPrompt(guestFacts, ["음료 사진"])).toContain("비어 있는 가게 이름");
+  });
   it("uses only server OpenAI configuration for images and speech", () => {
     expect(shortsConfiguration(env)).toEqual({ image: true, speech: true });
     expect(shortsConfiguration({ ...env, LLM_ENABLED: "false" })).toEqual({

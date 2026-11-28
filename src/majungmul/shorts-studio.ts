@@ -166,7 +166,7 @@ export function shortsStudioHtml(next: MediaBrief) {
       script
         ? `<div class="stack shorts-preview-column">
       ${result ? `<video class="shorts-output" controls playsinline src="${result.url}" aria-label="완성된 30초 내레이션 숏츠"></video>` : '<canvas id="shortsPreview" width="720" height="1280" aria-label="내레이션 숏츠 미리보기"></canvas>'}
-      ${result ? `<a class="btn primary" href="${result.url}" download="${esc(next.name)}-내레이션숏츠-30초.${result.extension}">${result.extension.toUpperCase()} 다운로드 ↓</a><p class="xs muted">내용을 확인하고 새로고침 전에 파일을 저장해 주세요.</p>` : ""}
+      ${result ? `<a class="btn primary" href="${result.url}" download="${esc(next.name.trim() || "홍보")}-내레이션숏츠-30초.${result.extension}">${result.extension.toUpperCase()} 다운로드 ↓</a><p class="xs muted">내용을 확인하고 새로고침 전에 파일을 저장해 주세요.</p>` : ""}
       <p class="xs muted">720 × 1280 · 장면별 확대·이동 · 문장별 자막${narrated ? " · AI 내레이션" : ""}<br>편집한 이미지 중심의 숏츠입니다.</p>
     </div>${
       !busy
