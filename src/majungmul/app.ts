@@ -1129,7 +1129,6 @@ function viewLanding(){
   const row1=[ichip('음식점','bowl','#F2643A','#F2643A'),cchip(CH[0],'#03A94E'),ichip('카페','cup','#A0652C','#A0652C'),cchip(CH[1],'linear-gradient(90deg,#F58529,#DD2A7B,#8134AF)'),ichip('학원·교습소','book','#2F6BFF','#2F6BFF'),cchip(CH[2],'#E8002D'),ichip('미용·뷰티','cut','#DB2777','#DB2777'),cchip(CH[3],'#222'),ichip('동네 가게','bag','#0B8F86','#0B8F86'),cchip(CH[4],'#16A34A'),cchip(CH[5],'#FF6F0F')].join('');
   const row2=['오늘의 메뉴','신메뉴 소식','수강생 모집','시술 전후','입고 소식','단골 이야기','이벤트 안내','계절 한정','후기 모음','영업시간 안내'].map((t,i)=>`<span class="chip" style="background:${['#FFD84D','#7DD3FC','#C4B5FD','#FDA4AF','#86EFAC','#FDBA74'][i%6]};color:#0A2A33;padding-left:20px">#${t}</span>`).join('');
   return `<div class="ld">
-  <div class="ld-strip">지금 보시는 건 시연 버전이에요 · 글은 실제 AI가 쓰고, 채널 발행은 흉내만 내요</div>
   <div class="ld-top"><div class="in"><button class="brand-link" data-act="goLanding" style="border:0;background:transparent;display:flex;align-items:center;gap:10px"><span class="logo" style="width:36px;height:36px;border-radius:12px;display:grid;place-items:center;background:#0B6E8A">${logoSvg}</span><b style="font-size:20px;font-weight:900;letter-spacing:-0.04em">마중물</b></button>
     <div class="row"><button class="btn ghost hide-m" data-act="ldScroll" data-v="how">사용법</button><button class="btn ghost hide-m" data-act="ldScroll" data-v="why">차이점</button><button class="btn ghost hide-m" data-act="ldScroll" data-v="faq">자주 묻는 질문</button><button class="bt pri" style="height:44px;padding:0 18px;font-size:14.5px" data-act="ldStart">${startTxt}</button></div></div></div>
 
@@ -1225,7 +1224,6 @@ function viewLanding(){
     <h2 class="sec" style="color:#fff">오늘 찍은 사진 한 장이<br>첫 마중물이 돼요</h2>
     <p class="lead" style="color:#D4EEF4;text-align:center">가게 정보 입력 2분, 그 다음부턴 하루 1분이면 충분해요.</p>
     <div class="row" style="gap:12px;justify-content:center;flex-wrap:wrap"><button class="bt" data-act="ldStart">${startTxt} ${arr}</button><button class="bt" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.5)" data-act="ldDemo">예시 가게 보기</button></div>
-    <span class="small" style="opacity:.8;margin-top:20px">마중물 · 시연 버전 · 글쓰기는 연결한 AI가 하고, 채널 발행은 아직 흉내만 내요</span>
   </div></section>
   </div>`;
 }
@@ -1274,7 +1272,6 @@ function render(){
   if(v!=='create'||UI.flow?.stage!=='review')clearMediaStudio();
   document.body.classList.toggle('landing',v==='landing');
   $('#main').innerHTML=v==='landing'?viewLanding():v==='setup'?viewSetup():v==='home'?viewHome():v==='library'?viewLibrary():v==='create'?viewCreate():v==='status'?viewStatus():viewStore();
-  if(UI.aiStatus?.environment==='dev')$('#main').insertAdjacentHTML('afterbegin','<div class="banner warn" role="note" data-environment="dev"><b>개발 검증 환경</b><span>테스트용 화면입니다.</span></div>');
   if(v==='landing') initLanding(); else stopLanding();
   $('#modal').innerHTML=UI.modal==='picker'?pickerModal():UI.modal==='text'?textModal():UI.modal==='post'?postModal():'';
   if(v==='create'&&UI.flow?.stage==='review')mountMediaCards(render);

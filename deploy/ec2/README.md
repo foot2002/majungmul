@@ -45,8 +45,9 @@ sudo systemctl restart majungmul-prod
 설정 항목은 [AI 연결 안내](../../docs/ai-integration.md)를 참고한다.
 
 서버에서는 systemd가 지정된 파일을 읽는다. 두 앱 모두 `NODE_ENV=production`이며
-`APP_ENV=prod` / `APP_ENV=dev`로 환경을 구분한다. 개발 앱 화면에는
-**개발 검증 환경** 표시가 나온다. 포트와 환경 이름은 서비스 실행 명령이 고정한다.
+`APP_ENV=prod` / `APP_ENV=dev`로 환경을 구분한다. 화면에는 환경 안내 배너를 표시하지 않는다.
+응답의 `X-Majungmul-Environment` 헤더로 환경을 확인할 수 있다.
+포트와 환경 이름은 서비스 실행 명령이 고정한다.
 
 ## 데이터와 접근 분리
 
