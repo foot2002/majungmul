@@ -84,8 +84,11 @@ export function paintShortsFrame(
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillStyle = "#b9b4ae";
-  fit(ctx, project.name, 23, 610, 600);
-  ctx.fillText(project.name, 360, 90);
+  const name = project.name.trim();
+  if (name) {
+    fit(ctx, name, 23, 610, 600);
+    ctx.fillText(name, 360, 90);
+  }
   ctx.fillStyle = "#fff";
   fit(ctx, project.script.title, 69, 620);
   ctx.fillText(project.script.title, 360, 182);
@@ -121,12 +124,12 @@ export function paintShortsFrame(
   ctx.fillStyle = "#ff482f";
   ctx.fillRect(0, 1000, 720 * Math.min(1, seconds / SHORTS_SECONDS), 5);
   ctx.fillStyle = "#f5f0e8";
-  fit(ctx, index === 5 ? `${project.name}에서 만나요` : project.area || project.name, 31, 620, 700);
-  ctx.fillText(
-    index === 5 ? `${project.name}에서 만나요` : project.area || project.name,
-    360,
-    1100,
-  );
+  const footer =
+    index === 5 ? (name ? `${name}에서 만나요` : project.script.accent) : project.area || name;
+  if (footer) {
+    fit(ctx, footer, 31, 620, 700);
+    ctx.fillText(footer, 360, 1100);
+  }
   ctx.fillStyle = "#a9a39b";
   ctx.font = "500 18px sans-serif";
   ctx.fillText(

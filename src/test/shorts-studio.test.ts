@@ -1,4 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { shortsImageSchema } from "../lib/ai/shorts-contracts";
 
 const mocks = vi.hoisted(() => ({
   speech: vi.fn(),
@@ -88,10 +89,10 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
-async function setup() {
+async function setup(input = brief) {
   const studio = await import("../majungmul/shorts-studio");
   const render = () => {
-    document.body.innerHTML = studio.shortsStudioHtml(brief);
+    document.body.innerHTML = studio.shortsStudioHtml(input);
     studio.mountShortsStudio(render);
   };
   render();
@@ -107,6 +108,24 @@ async function setup() {
   };
 }
 describe("one-click shorts generation", () => {
+  it("completes guest shorts with empty store facts through the image API validator", async () => {
+    const guest = { ...brief, name: "", area: "", hours: "", menus: [] };
+    mocks.image.mockImplementation(async ({ data }) => {
+      shortsImageSchema.parse(data);
+      return { ok: true, value: { image: "data:image/jpeg;base64,AAAA" } };
+    });
+    const { act } = await setup(guest);
+    await act("shortsGenerate");
+    expect(document.querySelector('[role="alert"]')).toBeNull();
+    expect(mocks.image).toHaveBeenCalledTimes(3);
+    expect(mocks.image.mock.calls[0]![0].data.facts.name).toBe("");
+    expect(mocks.speech).toHaveBeenCalledTimes(6);
+    expect(mocks.record).toHaveBeenCalledOnce();
+    expect(mocks.record.mock.calls[0]![0].name).toBe("");
+    expect(document.querySelector("a[download]")?.getAttribute("download")).toBe(
+      "홍보-내레이션숏츠-30초.mp4",
+    );
+  });
   it("unlocks audio on the initial click and completes script, images, speech and video in one action", async () => {
     const { act } = await setup();
     expect(
