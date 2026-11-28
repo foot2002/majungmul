@@ -14,6 +14,13 @@ if(started)return;started=true;
 
 'use strict';
 
+// Public photo creation has its own workspace; saved store data is not a login session.
+const entryMode=new URLSearchParams(window.location.search).get('mode');
+const guestMode=entryMode==='guest';
+const stateKey=guestMode?'gk2-guest-state':'gk2-state';
+const materialsKey=guestMode?'gk2-guest-mats':'gk2-mats';
+const workspaceStorage=()=>guestMode?sessionStorage:localStorage;
+
 /* =========================================================
    고정 데이터
    ========================================================= */
@@ -109,7 +116,7 @@ function exampleState(){
   s.stories=[{q:'창가 자리는 왜 따로 두셨어요?',a:'오후 3시쯤 햇살이 제일 예뻐서, 혼자 오시는 손님 자리로 비워둬요.',at:Date.now()-5*DAY}];
   return s;
 }
-let S=exampleState();
+let S=guestMode?baseState():exampleState();
 let M={};                 // 자료: id -> material
 let UI={view:'home',flow:null,filter:'전체',modal:null,qDraft:'',storeEdit:null,inboxOpen:false};
 let cap={db:null,uid:null,sample:null,dict:null};
@@ -136,7 +143,7 @@ function toast(msg){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTi
    ========================================================= */
 let saveT=null,saving=false,pendingSave=false;
 const matWriting=new Set(), matPending=new Set();
-function persist(){clearTimeout(saveT);saveT=setTimeout(saveState,600);try{localStorage.setItem('gk2-state',JSON.stringify(S));}catch(_){}}
+function persist(){clearTimeout(saveT);saveT=setTimeout(saveState,600);try{workspaceStorage().setItem(stateKey,JSON.stringify(S));}catch(_){}}
 async function saveState(){
   if(!cap.db||!cap.uid)return;
   if(saving){pendingSave=true;return;}
@@ -144,7 +151,7 @@ async function saveState(){
   saving=false;if(pendingSave){pendingSave=false;saveState();}
 }
 async function saveMat(m){
-  try{const all=JSON.parse(localStorage.getItem('gk2-mats')||'{}');all[m.id]=m;localStorage.setItem('gk2-mats',JSON.stringify(all));}catch(_){}
+  try{const all=JSON.parse(workspaceStorage().getItem(materialsKey)||'{}');all[m.id]=m;workspaceStorage().setItem(materialsKey,JSON.stringify(all));}catch(_){}
   if(!cap.db||!cap.uid)return;
   if(matWriting.has(m.id)){matPending.add(m.id);return;}
   matWriting.add(m.id);
@@ -153,7 +160,7 @@ async function saveMat(m){
 }
 async function deleteMat(id){
   delete M[id];
-  try{const all=JSON.parse(localStorage.getItem('gk2-mats')||'{}');delete all[id];localStorage.setItem('gk2-mats',JSON.stringify(all));}catch(_){}
+  try{const all=JSON.parse(workspaceStorage().getItem(materialsKey)||'{}');delete all[id];workspaceStorage().setItem(materialsKey,JSON.stringify(all));}catch(_){}
 }
 
 /* =========================================================
@@ -454,6 +461,7 @@ function appeal(chId,d,f){
    공통 AI 호출 (Claude / ChatGPT)
    ========================================================= */
 function profileText(){
+  if(guestMode)return '가게 정보는 제공되지 않았다. 이름·동네·영업시간·가격·등록 메뉴·차별점을 추측하지 않는다. 이번에 올린 사진과 직접 입력한 설명만 사용한다.';
   const p=S.profile,T=IND[p.industry],f=p.fields||{};
   const req=T.req.map(r=>{const v=f[r.k];const t=Array.isArray(v)?v.join(', '):v;return t?`${r.label}: ${t}`:'';}).filter(Boolean);
   const ex=(T.extra||[]).map(([k,l])=>p.extra&&p.extra[k]?`${l}: ${p.extra[k]}`:'').filter(Boolean);
@@ -471,7 +479,7 @@ async function askJson(prompt,opts){
 }
 async function aiTag(m){
   const menuNames=S.profile.menu.map(x=>x.name).join(', ')||'(없음)';
-  let base=`동네 ${IND[S.profile.industry].label}의 마케팅 자료를 정리한다. 등록된 메뉴: ${menuNames}.
+  let base=`${guestMode?'홍보용 사진·문서':`동네 ${IND[S.profile.industry].label}의 마케팅 자료`}를 정리한다. 등록된 메뉴: ${menuNames}.
 JSON만 출력: {"storePhoto":가게·메뉴·공간·사람·만드는 과정을 직접 찍은 사진이면 true, 화면 캡처·표·문서·광고물·관련 없는 이미지면 false,"topicIdea":"이 자료로 손님에게 알릴 만한 홍보 주제 20자 이내(가게와 관련 없으면 빈 값)","questions":["이 자료로 글을 쓸 때 사장님만 아는 구체적 사실을 끌어낼 짧은 질문 2개(예: 언제부터 팔았나요? 재료는 어디서?)"],"kind":"메뉴|공간|사람|과정|이벤트|후기|글 중 하나","menu":["등록된 메뉴 이름 중 보이는 것"],"summary":"40자 이내 사실 묘사","tags":["2~6개"],"faces":사람 얼굴이 알아볼 수 있게 보이면 true,"facts":[{"type":"price","item":"메뉴 이름","value":숫자} 또는 {"type":"event","title":"","ends":"YYYY-MM-DD 또는 빈 값"}]}
 보이지 않는 것은 쓰지 않는다. 가격·이벤트는 글자로 분명히 보일 때만 facts에 넣는다.`;
   if(m.src==='text') return await askJson(base+'\n자료(사장님이 올린 글·파일 내용):\n'+m.text,{modelTier:'quick',task:'tags'});
@@ -575,10 +583,11 @@ function renderNav(){
   const pend=Object.values(M).filter(m=>m.status==='pending').length, inbox=S.inbox.length;
   const waiting=S.posts.filter(p=>Object.values(p.status).some(v=>v.state==='wait'||v.state==='manual')).length;
   const badge=id=>id==='home'&&inbox?inbox:id==='library'&&pend?pend:id==='status'&&waiting?waiting:0;
-  $('#sideNav').innerHTML=NAV.map(n=>n.id==='create'
+  const navigation=guestMode?NAV.filter(n=>['create','library'].includes(n.id)):NAV;
+  $('#sideNav').innerHTML=navigation.map(n=>n.id==='create'
     ?`<button class="nav-btn new" data-act="nav" data-v="create">${ic('plus')}새 글 만들기</button>`
     :`<button class="nav-btn" data-act="nav" data-v="${n.id}" ${UI.view===n.id?'aria-current="page"':''}>${ic(n.icon)}${n.label}${badge(n.id)?`<span class="badge">${badge(n.id)}</span>`:''}</button>`).join('');
-  $('#bottomNav').innerHTML=BNAV.map(id=>NAV.find(n=>n.id===id)).map(n=>n.id==='create'
+  $('#bottomNav').innerHTML=BNAV.map(id=>navigation.find(n=>n.id===id)).filter(Boolean).map(n=>n.id==='create'
     ?`<button class="fab" data-act="nav" data-v="create" aria-label="새 글 만들기">${ic('plus',26)}</button>`
     :`<button data-act="nav" data-v="${n.id}" ${UI.view===n.id?'aria-current="page"':''}>${ic(n.icon,22)}${n.label}${badge(n.id)?`<span class="badge nb">${badge(n.id)}</span>`:''}</button>`).join('');
 }
@@ -846,7 +855,7 @@ function newFlow(topic,matIds,kind){
 function viewCreate(){
   const f=UI.flow||(UI.flow=newFlow(''));
   if(f.stage==='input')return createInput(f);
-  if(f.stage==='gen')return `<div class="card stack" style="align-items:center;padding:44px 18px;text-align:center"><div class="spinner"></div><h2>${esc(f.genMsg||'사진과 기본 정보로 SNS를 만들고 있어요')}</h2><p class="muted small">사진 속 내용과 가게 정보를 함께 읽고 6개 채널에 맞춰 써요. 보통 20~60초 걸려요.</p>${usedStrip(f,false)}<button class="btn" data-act="cancelGeneration">취소하고 사진 확인</button></div>`;
+  if(f.stage==='gen')return `<div class="card stack" style="align-items:center;padding:44px 18px;text-align:center"><div class="spinner"></div><h2>${esc(f.genMsg||'사진과 기본 정보로 SNS를 만들고 있어요')}</h2><p class="muted small">${guestMode?'사진과 직접 입력한 설명을 읽고':'사진 속 내용과 가게 정보를 함께 읽고'} 6개 채널에 맞춰 써요. 보통 20~60초 걸려요.</p>${usedStrip(f,false)}<button class="btn" data-act="cancelGeneration">취소하고 사진 확인</button></div>`;
   if(f.stage==='review')return createReview(f);
   if(f.stage==='done')return createDone(f);
   return '';
@@ -863,18 +872,18 @@ const WHY_DETAIL=['이번 주만','할인·혜택','신규 모집','특강 개�
 const KIND_Q={메뉴:['이 메뉴는 언제부터, 왜 만들게 됐어요?','다른 곳과 다른 재료나 만드는 방법이 있나요?'],공간:['이 자리는 어떤 손님이 주로 앉나요?','이 공간에서 사장님이 가장 좋아하는 순간은요?'],과정:['이 과정은 얼마나 걸리고, 왜 직접 하세요?','손님이 모르는 이 과정의 비밀이 있나요?'],사람:['이 분은 어떤 일을 맡고 계세요?','손님들이 이 분을 좋아하는 이유는요?'],이벤트:['언제까지, 누구에게 어떤 혜택이에요?','이 이벤트를 하는 이유가 있나요?'],후기:['이 후기를 받았을 때 어떤 마음이었어요?','이 손님은 주로 무엇을 드세요?'],글:['이 내용 중 손님이 꼭 알았으면 하는 건요?','요즘 바뀐 점이 있나요?']};
 function photoQuestions(pm){if(!pm)return [];if(pm.questions&&pm.questions.length)return pm.questions;if(pm.status==='pending')return [];return KIND_Q[pm.kind]||KIND_Q['메뉴'];}
 function selectedPhotoMats(f){return [...new Set([f.photoMat,...f.mats].filter(Boolean))].map(id=>M[id]).filter(m=>m&&m.src==='photo'&&m.thumb).slice(0,3);}
-function promotionBasicsReady(){return !!(S.profile.name.trim()&&S.profile.area.trim());}
+function promotionBasicsReady(){return guestMode||!!(S.profile.name.trim()&&S.profile.area.trim());}
 function canGenerate(f){return !!f.topic.trim()||selectedPhotoMats(f).length>0;}
-function updateGenerateButton(){const f=UI.flow,b=$('[data-act="generate"]');if(!f||!b)return;b.disabled=!canGenerate(f);b.textContent=selectedPhotoMats(f).length?'사진·기본 정보로 SNS 만들기':f.topic.trim()?'AI로 채널별 글 만들기':'사진을 올리거나 주제를 적어주세요';}
+function updateGenerateButton(){const f=UI.flow,b=$('[data-act="generate"]');if(!f||!b)return;b.disabled=!canGenerate(f);b.textContent=selectedPhotoMats(f).length?(guestMode?'사진으로 SNS 만들기':'사진·기본 정보로 SNS 만들기'):f.topic.trim()?'AI로 채널별 글 만들기':'사진을 올리거나 주제를 적어주세요';}
 function promotionSettings(f){
   const ps=UI.aiStatus?.providers||[];
   const faces=selectedPhotoMats(f).filter(m=>m.faces&&!m.faceApproved);
   return `<section class="card stack">
-    <div class="row between"><h2>사진과 함께 사용할 기본 정보</h2><span class="chip ${cap.sample?'good':'warn'}">${cap.sample?esc(PROVIDER_LABELS[UI.aiProvider])+' 연결됨':'AI 연결 필요'}</span></div>
-    <p class="small muted">가게 이름과 동네만 있어도 시작할 수 있어요. 등록한 메뉴·가격·특징도 함께 참고하며, 비어 있는 정보는 넣지 않아요.</p>
-    <div class="grid3"><label class="stack small" style="gap:4px">가게 이름<input class="inp" data-field="name" value="${esc(S.profile.name)}" placeholder="예) 온기카페"></label><label class="stack small" style="gap:4px">동네<input class="inp" data-field="area" value="${esc(S.profile.area)}" placeholder="예) 성수동"></label><label class="stack small" style="gap:4px">영업시간 (선택)<input class="inp" data-field="hours" value="${esc(S.profile.hours)}" placeholder="예) 매일 10:00–21:00"></label></div>
-    <label class="lbl" for="promotionProvider">홍보물을 만들 AI</label><select class="inp" id="promotionProvider" ${UI.aiLoading?'disabled':''}><option value="off" ${UI.aiProvider==='off'?'selected':''}>AI 선택</option>${ps.map(p=>`<option value="${p.id}" ${UI.aiProvider===p.id?'selected':''} ${p.configured?'':'disabled'}>${esc(p.label)}${p.configured?'':' · 연결 설정 필요'}</option>`).join('')}</select>
-    <p class="xs muted">선택한 사진과 가게 정보가 해당 AI로 전달돼요.</p>
+    <div class="row between"><h2>${guestMode?'홍보물을 만들 AI':'사진과 함께 사용할 기본 정보'}</h2><span class="chip ${cap.sample?'good':'warn'}">${cap.sample?esc(PROVIDER_LABELS[UI.aiProvider])+' 연결됨':'AI 연결 필요'}</span></div>
+    ${guestMode?'':`<p class="small muted">가게 이름과 동네만 있어도 시작할 수 있어요. 등록한 메뉴·가격·특징도 함께 참고하며, 비어 있는 정보는 넣지 않아요.</p>
+    <div class="grid3"><label class="stack small" style="gap:4px">가게 이름<input class="inp" data-field="name" value="${esc(S.profile.name)}" placeholder="예) 온기카페"></label><label class="stack small" style="gap:4px">동네<input class="inp" data-field="area" value="${esc(S.profile.area)}" placeholder="예) 성수동"></label><label class="stack small" style="gap:4px">영업시간 (선택)<input class="inp" data-field="hours" value="${esc(S.profile.hours)}" placeholder="예) 매일 10:00–21:00"></label></div>`}
+    <label class="${guestMode?'sr':'lbl'}" for="promotionProvider">홍보물을 만들 AI</label><select class="inp" id="promotionProvider" ${UI.aiLoading?'disabled':''}><option value="off" ${UI.aiProvider==='off'?'selected':''}>AI 선택</option>${ps.map(p=>`<option value="${p.id}" ${UI.aiProvider===p.id?'selected':''} ${p.configured?'':'disabled'}>${esc(p.label)}${p.configured?'':' · 연결 설정 필요'}</option>`).join('')}</select>
+    <p class="xs muted">선택한 사진과 ${guestMode?'직접 입력한 설명':'가게 정보'}가 해당 AI로 전달돼요.</p>
     ${!ps.some(p=>p.configured)?'<button class="btn sm" data-act="refreshAi">AI 연결 상태 다시 확인</button>':''}
     ${f.generateError?`<div class="banner warn" role="alert"><span>${esc(f.generateError)} 사진과 입력 내용은 그대로 있어요.</span></div>`:''}
     ${faces.length?`<div class="banner warn"><span>선택한 사진 ${faces.length}장에 얼굴이 보여요. 사용 동의를 받은 경우에만 홍보에 넣어주세요.</span><button class="btn sm" data-act="approvePhotoFaces">사진 속 사람들의 동의를 받았어요</button></div>`:''}
@@ -899,8 +908,8 @@ function createInput(f){
   const extra=f.mats.filter(id=>id!==f.photoMat).map(id=>M[id]).filter(Boolean);
   const kindLabel=m=>m.src==='text'?'글·후기':m.src==='doc'?'문서':'사진 설명';
   return `
-  <div class="row"><button class="btn sm ghost" data-act="nav" data-v="home">${ic('back',16)}오늘로</button></div>
-  <div class="stack" style="gap:4px"><h1>사진으로 SNS 만들기</h1><p class="muted">사진과 기본 정보만으로 만들 수 있어요. 주제와 추가 설명은 원하는 경우에만 적어주세요.</p></div>
+  <div class="row"><button class="btn sm ghost" data-act="${guestMode?'goLanding':'nav'}" ${guestMode?'':'data-v="home"'}>${ic('back',16)}${guestMode?'처음으로':'오늘로'}</button></div>
+  <div class="stack" style="gap:4px"><h1>사진으로 SNS 만들기</h1><p class="muted">${guestMode?'사진만 올려도 SNS 홍보물을 만들 수 있어요.':'사진과 기본 정보만으로 만들 수 있어요.'} 주제와 추가 설명은 원하는 경우에만 적어주세요.</p></div>
   ${promotionSettings(f)}
   <div class="grid2">
     <section class="card stack">
@@ -919,13 +928,13 @@ function createInput(f){
       ${f.topicAuto?'<span class="xs muted">사진을 보고 제안한 주제예요. 바꿔도 돼요.</span>':''}
       ${qs.length&&!notStore?`<div class="stack" style="gap:10px;background:var(--accent-soft);border-radius:14px;padding:14px">
         <b style="color:var(--accent-text)">더 알려주고 싶다면 (선택)</b>
-        <span class="xs" style="color:var(--accent-text)">AI는 사진만 보고는 모르는 사실이에요. 답은 ‘가게 이야기’에도 저장돼 다음 글에 또 쓰여요.</span>
+        <span class="xs" style="color:var(--accent-text)">${guestMode?'사진만으로 알 수 없는 내용을 이번 홍보물에 더할 수 있어요.':'AI는 사진만 보고는 모르는 사실이에요. 답은 ‘가게 이야기’에도 저장돼 다음 글에 또 쓰여요.'}</span>
         ${qs.map((q,i)=>`<div class="stack" style="gap:4px"><label class="lbl" for="pq${i}" style="color:var(--ink)">${esc(q)}</label><div class="row" style="flex-wrap:nowrap"><input id="pq${i}" class="inp" data-pq="${i}" value="${esc(f.answers[i]||'')}" placeholder="짧게, 말하듯">${cap.dict?`<button class="btn mic ${dictTarget==='pq'+i?'on':''}" data-act="dict" data-t="pq${i}" aria-label="말로 답하기">${ic('mic',18)}</button>`:''}</div></div>`).join('')}
       </div>`:''}
       <div class="stack" style="gap:6px"><span class="lbl">누구에게 알릴까요? <span class="muted">(눌러서 고르기 · 여러 개 가능)</span></span>
-        <div class="row" style="gap:6px">${(AUD[S.profile.industry]||[]).map(a=>`<button class="tab" style="height:38px" aria-pressed="${(f.aud||[]).includes(a)}" aria-selected="${(f.aud||[]).includes(a)}" data-act="tglAud" data-v="${esc(a)}">${esc(a)}</button>`).join('')}</div></div>
+        <div class="row" style="gap:6px">${(guestMode?['처음 방문하는 분','단골 손님','동네 이웃','친구·가족']:(AUD[S.profile.industry]||[])).map(a=>`<button class="tab" style="height:38px" aria-pressed="${(f.aud||[]).includes(a)}" aria-selected="${(f.aud||[]).includes(a)}" data-act="tglAud" data-v="${esc(a)}">${esc(a)}</button>`).join('')}</div></div>
       <div class="stack" style="gap:6px"><span class="lbl">왜 지금 와야 하나요? <span class="muted">(눌러서 고르기)</span></span>
-        <div class="row" style="gap:6px">${(WHY[S.profile.industry]||[]).map(a=>`<button class="tab" style="height:38px" aria-pressed="${(f.why||[]).includes(a)}" aria-selected="${(f.why||[]).includes(a)}" data-act="tglWhy" data-v="${esc(a)}">${esc(a)}</button>`).join('')}</div>
+        <div class="row" style="gap:6px">${(guestMode?['새 소식','오늘의 추천','이벤트','예약·문의']:(WHY[S.profile.industry]||[])).map(a=>`<button class="tab" style="height:38px" aria-pressed="${(f.why||[]).includes(a)}" aria-selected="${(f.why||[]).includes(a)}" data-act="tglWhy" data-v="${esc(a)}">${esc(a)}</button>`).join('')}</div>
         ${(f.why||[]).some(w=>WHY_DETAIL.includes(w))?`<label class="sr" for="fWhyD">기간·혜택 내용</label><input id="fWhyD" class="inp" value="${esc(f.whyDetail)}" placeholder="얼마나·언제까지? 예) 11/24까지 2잔 주문 시 1천원 할인">`:''}</div>
       <details ${f.note?'open':''}><summary class="small" style="cursor:pointer;color:var(--muted)">그 밖에 꼭 넣고 싶은 말 (선택)</summary>
         <div class="row" style="flex-wrap:nowrap;margin-top:8px"><label class="sr" for="fNote">꼭 넣고 싶은 말</label><input id="fNote" class="inp" value="${esc(f.note)}" placeholder="예) 주차는 건물 뒤에 하세요">${cap.dict?`<button class="btn mic ${dictTarget==='fNote'?'on':''}" data-act="dict" data-t="fNote" aria-label="말로 입력">${ic('mic',18)}</button>`:''}</div></details>
@@ -940,14 +949,14 @@ function createInput(f){
     </div>
     ${extra.length?`<div class="stack" style="gap:8px">${extra.map(m=>`<div class="row" style="flex-wrap:nowrap;align-items:flex-start;border:1px solid var(--line);border-radius:12px;padding:8px">${m.thumb?`<img src="${m.thumb}" alt="" style="width:52px;height:52px;border-radius:8px;object-fit:cover;flex:none">`:`<span style="width:52px;height:52px;border-radius:8px;background:var(--chip);display:grid;place-items:center;flex:none">${ic('text',20)}</span>`}<span class="stack" style="gap:2px;flex:1;min-width:0"><span class="chip ${m.src==='text'?'accent':m.src==='doc'?'info':''}" style="align-self:flex-start">${kindLabel(m)}</span><span class="small">${esc(m.summary)}</span><span class="xs muted">글에는 이렇게 쓰여요: ${m.src==='text'?'손님이 한 말·예전 글의 사실을 인용':m.src==='doc'?'적힌 가격·기간 같은 사실 (확인된 것만)':'사진에 담긴 장면을 문장으로 묘사'}</span></span><button class="btn ghost" style="height:32px;width:32px;padding:0;flex:none" data-act="unuse" data-v="${m.id}" aria-label="빼기">${ic('x',16)}</button></div>`).join('')}</div>`
       :`<div class="banner info"><span>이 주제에 맞는 자료가 아직 없어요. <b>없어도 글은 써요.</b> 다음부터는 손님 후기 캡처나 메뉴판 사진을 자료함에 넣어두면 여기에 자동으로 들어와요.</span><button class="btn sm" data-act="nav" data-v="library">자료함 가기</button></div>`}
-    <details><summary class="small" style="cursor:pointer;color:var(--muted)">항상 함께 참고하는 것: 가게 이야기 ${S.stories.length}개 · 차별점 ${S.profile.strengths.length}개 · 메뉴 ${S.profile.menu.length}개</summary>
-      <div class="stack" style="gap:6px;margin-top:8px">${S.stories.slice(-3).reverse().map(x=>`<span class="small" style="background:var(--chip);border-radius:10px;padding:8px 10px">${esc(x.a.slice(0,70))}${x.a.length>70?'…':''}</span>`).join('')}<span class="xs muted">가격·영업시간은 ‘우리 가게’에 적힌 값만 써요.</span></div></details>
+    ${guestMode?'':`<details><summary class="small" style="cursor:pointer;color:var(--muted)">항상 함께 참고하는 것: 가게 이야기 ${S.stories.length}개 · 차별점 ${S.profile.strengths.length}개 · 메뉴 ${S.profile.menu.length}개</summary>
+      <div class="stack" style="gap:6px;margin-top:8px">${S.stories.slice(-3).reverse().map(x=>`<span class="small" style="background:var(--chip);border-radius:10px;padding:8px 10px">${esc(x.a.slice(0,70))}${x.a.length>70?'…':''}</span>`).join('')}<span class="xs muted">가격·영업시간은 ‘우리 가게’에 적힌 값만 써요.</span></div></details>`}
   </section>
   <section class="card stack" style="background:${okN>=3?'var(--good-soft)':'var(--warn-soft)'};border-color:transparent">
     <div class="row between"><b>재료가 충분한가요? ${okN}/4</b><span class="small">${okN>=3?'좋아요, 우리 가게다운 글이 나올 거예요':'이대로도 쓸 수 있지만, 비어 있는 걸 채우면 훨씬 좋아져요'}</span></div>
     <div class="grid2" style="gap:6px">${ing.map(i=>`<span class="small"><span class="sev ${i.ok?'ok':'no'}" style="display:inline-grid;width:18px;height:18px;font-size:11px;margin-right:6px">${i.ok?'✓':'·'}</span><b>${i.label}</b>${i.ok?'':` <span class="muted xs">${i.hint}</span>`}</span>`).join('')}</div>
   </section>
-  <button class="btn primary lg block" data-act="generate" ${canGenerate(f)?'':'disabled'}>${selectedPhotoMats(f).length?'사진·기본 정보로 SNS 만들기':f.topic.trim()?'AI로 채널별 글 만들기':'사진을 올리거나 주제를 적어주세요'}</button>
+  <button class="btn primary lg block" data-act="generate" ${canGenerate(f)?'':'disabled'}>${selectedPhotoMats(f).length?(guestMode?'사진으로 SNS 만들기':'사진·기본 정보로 SNS 만들기'):f.topic.trim()?'AI로 채널별 글 만들기':'사진을 올리거나 주제를 적어주세요'}</button>
   ${S.example?'<button class="btn ghost" data-act="generateExample">AI 없이 예시 결과만 보기</button>':''}`;
 }
 function createReview(f){
@@ -955,7 +964,7 @@ function createReview(f){
   return `
   <div class="row"><button class="btn sm ghost" data-act="backInput">${ic('back',16)}주제·자료</button></div>
   <h1>${esc(f.topic)}</h1>
-  ${f.fellBack?`<div class="banner warn"><span>직접 선택한 예시 문구예요. LLM이 생성한 결과가 아닙니다.</span></div>`:`<div class="banner good"><span><b>${esc(f.generatedBy||'AI')}로 6개 채널 홍보물을 만들었어요.</b> 사진 ${f.analyzedPhotos||0}장과 가게 기본 정보를 함께 사용했어요.</span></div>`}
+  ${f.fellBack?`<div class="banner warn"><span>직접 선택한 예시 문구예요. LLM이 생성한 결과가 아닙니다.</span></div>`:`<div class="banner good"><span><b>${esc(f.generatedBy||'AI')}로 6개 채널 홍보물을 만들었어요.</b> 사진 ${f.analyzedPhotos||0}장과 ${guestMode?'직접 입력한 설명':'가게 기본 정보'}를 함께 사용했어요.</span></div>`}
   ${f.autoNote?`<div class="banner good"><span>${ic('check',16)} ${esc(f.autoNote)} 그대로 올려도 돼요.</span></div>`:''}
   ${quality.length?`<details class="banner warn"><summary>게시 전 문구 확인 ${quality.length}개</summary><ul>${quality.map(q=>`<li>${esc(q)}</li>`).join('')}</ul><p class="small">아래 해당 채널 탭에서 직접 고치거나 ‘더 짧게’ 등을 눌러 다듬을 수 있어요.</p></details>`:''}
   ${mediaStudioHtml(promotionBrief(f,M,S.profile))}
@@ -993,7 +1002,7 @@ function snippet(text,token){const i=String(text).indexOf(token);if(i<0)return t
 function previewHtml(c,d,f){
   const ch=CHMAP[c];
   const photos=promotionBrief(f,M,S.profile).photos;
-  if(c==='shorts'){const lines=[f.topic,...(d.body||'').split('\n').filter(Boolean).slice(0,3),S.profile.name+'에서 만나요'];return `<div class="preview"><div class="pv-head">${chMark(ch,22)}30초 쇼츠 · 5개 장면</div><div class="pv-short-story"><div class="shorts-frame">${photos[0]?`<img src="${esc(photos[0].src)}" alt="영상 첫 장면">`:''}<div class="shorts-cap"><span>${esc(f.topic)}</span></div></div><ol>${lines.map((l,i)=>`<li class="small"><span class="muted xs">${i*6}–${(i+1)*6}초</span> ${esc(l)}</li>`).join('')}</ol><span class="xs muted">위의 ‘30초 영상 만들기’를 누르면 재생하고 파일로 저장할 수 있어요.</span></div></div>`;}
+  if(c==='shorts'){const lines=[f.topic,...(d.body||'').split('\n').filter(Boolean).slice(0,3),S.profile.name?S.profile.name+'에서 만나요':'편하게 문의해 주세요'];return `<div class="preview"><div class="pv-head">${chMark(ch,22)}30초 쇼츠 · 5개 장면</div><div class="pv-short-story"><div class="shorts-frame">${photos[0]?`<img src="${esc(photos[0].src)}" alt="영상 첫 장면">`:''}<div class="shorts-cap"><span>${esc(f.topic)}</span></div></div><ol>${lines.map((l,i)=>`<li class="small"><span class="muted xs">${i*6}–${(i+1)*6}초</span> ${esc(l)}</li>`).join('')}</ol><span class="xs muted">위의 ‘30초 영상 만들기’를 누르면 재생하고 파일로 저장할 수 있어요.</span></div></div>`;}
   return `<div class="preview"><div class="pv-head">${chMark(ch,22)}이렇게 보여요${photos.length?` · 사진 ${photos.length}장`:''}</div>${photos.length?`<div class="pv-gallery">${photos.map(p=>`<img src="${esc(p.src)}" alt="${esc(p.caption)}" loading="lazy">`).join('')}</div>`:''}<div class="pv-body">${d.title?`<b style="font-size:16px">${esc(d.title)}</b>\n\n`:''}${esc(d.body||'')}</div></div>`;
 }
 function publishPanel(f,td){
@@ -1130,7 +1139,7 @@ function viewLanding(){
   const row2=['오늘의 메뉴','신메뉴 소식','수강생 모집','시술 전후','입고 소식','단골 이야기','이벤트 안내','계절 한정','후기 모음','영업시간 안내'].map((t,i)=>`<span class="chip" style="background:${['#FFD84D','#7DD3FC','#C4B5FD','#FDA4AF','#86EFAC','#FDBA74'][i%6]};color:#0A2A33;padding-left:20px">#${t}</span>`).join('');
   return `<div class="ld">
   <div class="ld-top"><div class="in"><button class="brand-link" data-act="goLanding" style="border:0;background:transparent;display:flex;align-items:center;gap:10px"><span class="logo" style="width:36px;height:36px;border-radius:12px;display:grid;place-items:center;background:#0B6E8A">${logoSvg}</span><b style="font-size:20px;font-weight:900;letter-spacing:-0.04em">마중물</b></button>
-    <div class="row"><button class="btn ghost hide-m" data-act="ldScroll" data-v="how">사용법</button><button class="btn ghost hide-m" data-act="ldScroll" data-v="why">차이점</button><button class="btn ghost hide-m" data-act="ldScroll" data-v="faq">자주 묻는 질문</button><button class="bt pri" style="height:44px;padding:0 18px;font-size:14.5px" data-act="ldStart">${startTxt}</button></div></div></div>
+    <div class="row"><button class="btn ghost hide-m" data-act="ldScroll" data-v="how">사용법</button><button class="btn ghost hide-m" data-act="ldScroll" data-v="why">차이점</button><button class="btn ghost hide-m" data-act="ldScroll" data-v="faq">자주 묻는 질문</button><a class="bt pri" style="height:44px;padding:0 18px;font-size:14.5px" href="/?mode=guest">${startTxt}</a></div></div></div>
 
   <section class="ld-hero">
     <div class="blob b1"></div><div class="blob b2"></div><div class="rings" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -1139,7 +1148,7 @@ function viewLanding(){
         <span class="pill"><i></i>소상공인 AI 마케팅 · 하루 1분</span>
         <h1 class="mega"><span class="line">사진 한 장</span><span class="line">하루 <span class="t">1분</span>이면</span><span class="line"><span class="hl">손님이 와요.<svg viewBox="0 0 400 30" preserveAspectRatio="none" aria-hidden="true"><path d="M4 22 C 90 6, 200 4, 396 16"/></svg></span></span></h1>
         <p class="lead">가게 사진 한 장 올리고 질문 한두 개에 답하면, 마중물이 블로그·인스타·쇼츠까지 채널마다 다른 글을 써요. 사장님은 읽어보고 <b style="color:var(--ink)">‘올리기’</b>만 누르면 끝이에요.</p>
-        <div class="row" style="gap:12px;flex-wrap:wrap"><button class="bt pri" data-act="ldStart">${startTxt} ${arr}</button><button class="bt" data-act="ldDemo">예시 가게로 둘러보기</button></div>
+        <div class="row" style="gap:12px;flex-wrap:wrap"><a class="bt pri" href="/?mode=guest">${startTxt} ${arr}</a><button class="bt" data-act="ldDemo">예시 가게로 둘러보기</button></div>
       </div>
       <div>
         <div class="phone" aria-label="사용 흐름 미리보기" role="img">
@@ -1222,8 +1231,8 @@ function viewLanding(){
   <section class="cta"><div class="rings" aria-hidden="true"><span></span><span></span><span></span></div><div class="in" style="align-items:center;gap:26px">
     <span class="eb" style="color:#BFEAF3">Start today</span>
     <h2 class="sec" style="color:#fff">오늘 찍은 사진 한 장이<br>첫 마중물이 돼요</h2>
-    <p class="lead" style="color:#D4EEF4;text-align:center">가게 정보 입력 2분, 그 다음부턴 하루 1분이면 충분해요.</p>
-    <div class="row" style="gap:12px;justify-content:center;flex-wrap:wrap"><button class="bt" data-act="ldStart">${startTxt} ${arr}</button><button class="bt" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.5)" data-act="ldDemo">예시 가게 보기</button></div>
+    <p class="lead" style="color:#D4EEF4;text-align:center">사진을 올리고 바로 시작하세요. 주제와 설명은 필요할 때만 더하면 돼요.</p>
+    <div class="row" style="gap:12px;justify-content:center;flex-wrap:wrap"><a class="bt" href="/?mode=guest">${startTxt} ${arr}</a><button class="bt" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.5)" data-act="ldDemo">예시 가게 보기</button></div>
   </div></section>
   </div>`;
 }
@@ -1320,7 +1329,7 @@ document.addEventListener('click',async e=>{
   switch(a){
     case 'refreshAi': await refreshAi(); break;
     case 'testAi': await testAi(); break;
-    case 'nav': if(v==='create'&&(!UI.flow||UI.flow.stage==='done'))UI.flow=newFlow(''); UI.view=v; UI.modal=null; render(); window.scrollTo(0,0); break;
+    case 'nav': if(guestMode&&!['create','library','status'].includes(v)){UI.flow=newFlow('');UI.view='create';UI.modal=null;render();break;} if(v==='create'&&(!UI.flow||UI.flow.stage==='done'))UI.flow=newFlow(''); UI.view=v; UI.modal=null; render(); window.scrollTo(0,0); break;
     case 'reset': if(!UI.resetAsk){UI.resetAsk=true;toast('한 번 더 누르면 예시를 지우고 빈 가게로 시작해요');setTimeout(()=>UI.resetAsk=false,4000);break;} { const ind=S.profile.industry; S=baseState(); UI.indPicked=false; S.profile.industry='restaurant'; S.profile.banned=IND[S.profile.industry].banned.slice(); Object.keys(M).filter(id=>M[id].example).forEach(id=>deleteMat(id)); UI.resetAsk=false; UI.setupStep=1; persist(); UI.view='setup'; render(); window.scrollTo(0,0); } break;
     case 'aiTopics': await doTopics(b); break;
     case 'pickTopic': { const t=curTopics().list[Number(b.dataset.i)]; await startFromTopic(t); break; }
@@ -1332,9 +1341,8 @@ document.addEventListener('click',async e=>{
     case 'upload': UI.uploadForPost=false; $('#fileLib').click(); break;
     case 'uploadForPost': UI.uploadForPost=true; UI.uploadQuick=v==='quick'||UI.view!=='create'; $('#fileLib').click(); break;
     case 'shoot': UI.uploadForPost=true; UI.uploadQuick=v==='quick'||v==='new'||UI.view!=='create'; $('#fileCam').click(); break;
-    case 'goLanding': UI.landingByUser=true; UI.view='landing'; UI.modal=null; render(); window.scrollTo(0,0); break;
+    case 'goLanding': if(guestMode){window.location.assign('/?mode=landing');break;} UI.landingByUser=true; UI.view='landing'; UI.modal=null; render(); window.scrollTo(0,0); break;
     case 'ldScroll': { const el=document.getElementById('ld-'+v); if(el) el.scrollIntoView({behavior:'smooth'}); break; }
-    case 'ldStart': S.seenLanding=true; persist(); if(S.setupDone&&!S.example){UI.view='home';} else { if(S.example){const ind='restaurant'; S=baseState(); S.seenLanding=true; Object.keys(M).filter(id=>M[id].example).forEach(id=>deleteMat(id)); persist();} UI.indPicked=false; UI.setupStep=1; UI.view='setup'; } render(); window.scrollTo(0,0); break;
     case 'ldDemo': S.seenLanding=true; if(!S.example&&!S.setupDone){ S=exampleState(); S.seenLanding=true; if(!Object.keys(M).length)M=exampleMats(); if(!S.posts.length)S.posts=examplePosts(); } persist(); UI.view='home'; render(); window.scrollTo(0,0); break;
     case 'openSetup': { const r=reqStatus(); const p=S.profile; UI.setupStep=!p.name||!p.area||!p.hours?2:r.missing.some(x=>x.label==='차별점')&&r.missing.length===1?4:3; UI.view='setup'; render(); window.scrollTo(0,0); break; }
     case 'setInd': clearMenuImport(); UI.indPicked=true; S.profile.industry=v; S.profile.banned=Array.from(new Set(IND[v].banned.concat((S.profile.banned||[]).filter(b=>!Object.values(IND).some(t=>t.banned.includes(b)))))); S.topics=null; S.example=false; persist(); render(); break;
@@ -1447,7 +1455,7 @@ async function doGenerate(exampleOnly=false){
   const job=generationGate.start();f.job=job;
   const sample=cap.sample,provider=UI.aiProvider;
   const current=()=>generationGate.isCurrent(job)&&UI.flow===f&&UI.view==='create';
-  f.stage='gen';f.genMsg=photos.length?'사진과 기본 정보를 함께 읽어 SNS를 만들고 있어요':'채널별로 글을 쓰고 있어요';render();window.scrollTo(0,0);
+  f.stage='gen';f.genMsg=photos.length?(guestMode?'사진을 읽어 SNS를 만들고 있어요':'사진과 기본 정보를 함께 읽어 SNS를 만들고 있어요'):'채널별로 글을 쓰고 있어요';render();window.scrollTo(0,0);
   try{
     let r;
     if(exampleOnly){f.topic=f.topic||'우리 가게 소개';r=fallbackDrafts(f);}
@@ -1560,15 +1568,19 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&UI.modal){UI.modal=
 /* =========================================================
    시작
    ========================================================= */
-try{const ls=localStorage.getItem('gk2-state');if(ls){const v=JSON.parse(ls);if(v&&v.profile)S=Object.assign(baseState(),v);}}catch(_){}
+try{const ls=workspaceStorage().getItem(stateKey);if(ls){const v=JSON.parse(ls);if(v&&v.profile)S=Object.assign(baseState(),v);}}catch(_){}
 function fixState(){if(!IND[S.profile.industry])S.profile.industry='restaurant';S.profile.fields=S.profile.fields||{};S.profile.extra=S.profile.extra||{};if(S.example)S.setupDone=true;}
+// Guest profile data is never hydrated as an authenticated store.
+if(guestMode){S.profile=baseState().profile;S.example=false;S.stories=[];S.lastAud=[];}
 fixState();
-try{const lm=localStorage.getItem('gk2-mats');if(lm)M=JSON.parse(lm)||{};}catch(_){M={};}
+try{const lm=workspaceStorage().getItem(materialsKey);if(lm)M=JSON.parse(lm)||{};}catch(_){M={};}
 if(S.example&&!Object.keys(M).length)M=exampleMats();
 // Upgrade only built-in sample illustrations; user-uploaded images stay intact.
 Object.values(M).filter(m=>m.example).forEach(m=>{const file=m.summary==='유자 라떼 한 잔, 위에 유자 슬라이스'?'yuja-latte':m.summary==='유자를 직접 썰어 설탕과 병에 담는 모습'?'yuja-preserve':m.summary==='오후 햇살이 드는 창가 2인석'?'cafe-window':null;if(file&&m.thumb?.startsWith('data:')){m.thumb='/media/demo/'+file+'.png';saveMat(m);}});
 if(S.example&&!S.posts.length)S.posts=examplePosts();
-if(!S.seenLanding)UI.view='landing';
+if(guestMode){UI.flow=newFlow('');UI.view='create';}
+else if(entryMode==='landing'){UI.landingByUser=true;UI.view='landing';}
+else if(!S.seenLanding)UI.view='landing';
 render();
 /* API 키는 서버에서만 읽고, 브라우저에는 공급자 설정 여부만 가져온다. */
 UI.sampleOff=true;UI.sampleKnown=false;
