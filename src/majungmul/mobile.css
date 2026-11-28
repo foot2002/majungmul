@@ -1,0 +1,380 @@
+/* Responsive overrides shared by the production and development screens. */
+body:has(.modal-bg) {
+  overflow: hidden;
+}
+
+.nav-create-label {
+  display: none;
+}
+
+@media (max-width: 960px) {
+  /* The landing illustrations use a light palette, including on dark-mode phones. */
+  .ld {
+    --bg: #f3f4f6;
+    --surface: #fff;
+    --ink: #16181d;
+    --muted: #5b6270;
+    --line: #e3e6ea;
+    --chip: #f1f2f5;
+    color-scheme: light;
+    background: var(--bg);
+  }
+
+  .ld a.bt {
+    text-decoration: none;
+  }
+
+  .ld-top .brand-link {
+    min-height: 44px;
+  }
+
+  html {
+    scroll-padding-bottom: calc(100px + env(safe-area-inset-bottom));
+  }
+
+  .app {
+    min-height: 100svh;
+  }
+
+  .app > main {
+    min-width: 0;
+    padding: 20px max(16px, env(safe-area-inset-right)) calc(110px + env(safe-area-inset-bottom))
+      max(16px, env(safe-area-inset-left));
+    gap: 18px;
+  }
+
+  .app > .brand-link.hide-d {
+    padding-top: max(14px, env(safe-area-inset-top)) !important;
+    padding-left: max(16px, env(safe-area-inset-left)) !important;
+  }
+
+  .app main > *,
+  .grid2 > *,
+  .grid3 > *,
+  .review > *,
+  .row > *,
+  .stack > *,
+  .list-row > * {
+    min-width: 0;
+  }
+
+  body:not(.landing) main,
+  .modal {
+    overflow-wrap: anywhere;
+  }
+
+  .btn,
+  .btn.sm,
+  .tab,
+  .mat .acts .btn {
+    min-width: 44px;
+    min-height: 44px;
+    height: auto;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    white-space: normal;
+    line-height: 1.45;
+    text-align: center;
+  }
+
+  .btn.lg {
+    min-height: 54px;
+    font-size: 16px;
+  }
+
+  .btn svg,
+  .tab svg,
+  .row > svg {
+    flex-shrink: 0;
+  }
+
+  .app .inp,
+  .modal .inp,
+  .app select,
+  .modal select {
+    min-width: 0;
+    max-width: 100%;
+    min-height: 48px;
+    font-size: 16px;
+  }
+
+  input[type="checkbox"],
+  input[type="radio"] {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    accent-color: var(--accent);
+  }
+
+  .app summary,
+  .modal summary,
+  .app label.row {
+    min-height: 44px;
+    padding-block: 10px;
+  }
+
+  .banner > span {
+    min-width: 0;
+    flex-basis: 200px;
+  }
+
+  /* Column banners must not interpret that flex basis as a fixed height. */
+  .banner[style*="flex-direction:column"] > span {
+    flex-basis: auto;
+  }
+
+  .tabs,
+  .used {
+    max-width: 100%;
+    padding: 3px 2px 8px;
+    scroll-padding-inline: 2px;
+    overscroll-behavior-x: contain;
+  }
+
+  .tabs .tab {
+    white-space: nowrap;
+  }
+
+  .bottom-nav {
+    padding: 8px max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom))
+      max(8px, env(safe-area-inset-left));
+    box-shadow: 0 -4px 20px #00000008;
+  }
+
+  .bottom-nav button {
+    min-width: 0;
+    min-height: 54px;
+    border-radius: 12px;
+  }
+
+  /* The guest workspace has two equal tabs instead of the five-tab centre FAB. */
+  .bottom-nav:has(> button:nth-child(2):last-child) {
+    gap: 8px;
+  }
+
+  .bottom-nav:has(> button:nth-child(2):last-child) .fab {
+    flex: 1;
+    width: auto;
+    height: 54px;
+    margin: 0;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--muted);
+  }
+
+  .bottom-nav:has(> button:nth-child(2):last-child) .nav-create-label {
+    display: block;
+  }
+
+  .bottom-nav:has(> button:nth-child(2):last-child) [aria-current="page"] {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+  }
+
+  .toast {
+    bottom: calc(88px + env(safe-area-inset-bottom));
+    width: max-content;
+    max-width: calc(100% - 32px);
+  }
+
+  .modal-bg {
+    padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+      max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  }
+
+  .modal {
+    min-width: 0;
+    max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    overscroll-behavior: contain;
+    scroll-padding-block: 16px;
+  }
+
+  .mat .acts {
+    flex-wrap: wrap;
+  }
+
+  .mat .acts .btn {
+    flex: 1 1 64px;
+  }
+
+  .ld #ld-why > .in {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 32px !important;
+  }
+
+  /* Media features are present on dev; these selectors are inert on older prod. */
+  .media-studio .media-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+
+  .media-studio .media-video-column {
+    width: 100%;
+    max-width: 360px;
+    justify-self: center;
+  }
+
+  .media-studio .shorts-options,
+  .media-studio .shorts-title-fields,
+  .media-studio .ai-scene-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .media-studio .ai-scene-result .btn {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 600px) {
+  .app > main {
+    padding-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right));
+    gap: 16px;
+  }
+
+  .card {
+    padding: 16px;
+  }
+
+  .banner {
+    padding: 12px;
+  }
+
+  .banner .row {
+    gap: 8px;
+  }
+
+  .banner .row > .btn {
+    flex: 1 1 120px;
+  }
+
+  .lib {
+    gap: 10px;
+  }
+
+  .modal-bg {
+    align-items: end;
+    padding-bottom: 0;
+    padding-inline: 0;
+  }
+
+  .modal {
+    padding: 16px max(16px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom))
+      max(16px, env(safe-area-inset-left));
+    border-radius: 20px 20px 0 0;
+    max-height: calc(100dvh - max(12px, env(safe-area-inset-top)));
+  }
+
+  .modal > .row.between:first-child {
+    position: sticky;
+    top: -16px;
+    z-index: 1;
+    background: var(--surface);
+    padding-block: 8px;
+  }
+
+  .modal .lib {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .ld-top .in {
+    padding: max(10px, env(safe-area-inset-top)) 12px 10px;
+    gap: 8px;
+  }
+
+  .ld-top .brand-link {
+    gap: 6px !important;
+    padding: 0;
+  }
+
+  .ld-top .bt {
+    padding-inline: 14px !important;
+    white-space: nowrap;
+  }
+
+  .ld section {
+    padding: 56px 16px;
+  }
+
+  .ld .in {
+    gap: 24px;
+  }
+
+  .ld .ld-hero {
+    padding-top: 40px !important;
+    padding-bottom: 56px !important;
+  }
+
+  .ld .mega {
+    font-size: clamp(36px, 10.5vw, 54px);
+    line-height: 1.2;
+  }
+
+  .ld-hero .row > .bt,
+  .ld .cta .bt {
+    width: 100%;
+    justify-content: center;
+    text-decoration: none;
+  }
+
+  .ld .stats > div {
+    padding: 24px 16px;
+  }
+
+  .ld .stats b {
+    font-size: 36px;
+  }
+
+  .ld .fc,
+  .ld .vs .card {
+    padding: 24px 20px;
+  }
+
+  .ld .pump {
+    max-width: 340px;
+  }
+
+  .media-studio.card {
+    padding: 14px;
+    gap: 18px;
+  }
+
+  .media-studio .shorts-studio,
+  .media-studio .ai-scenes {
+    padding: 12px;
+  }
+
+  .media-studio h2 {
+    font-size: 20px;
+  }
+
+  .media-studio .media-cards,
+  .media-studio .ai-scene-results {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .media-studio .media-card-footer .btn {
+    font-size: 13px;
+    flex: 1 1 100px;
+    min-height: 44px;
+  }
+
+  .media-studio .shorts-scene-list li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .shorts-studio .shorts-thumb {
+    justify-self: start;
+  }
+
+  .shorts-studio .shorts-thumb img {
+    width: 88px;
+    height: 88px;
+  }
+
+  .shorts-studio > [data-act="shortsGenerate"],
+  .shorts-studio > [data-act="shortsCancel"] {
+    width: 100%;
+  }
+}
