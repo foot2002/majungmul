@@ -588,7 +588,7 @@ function renderNav(){
     ?`<button class="nav-btn new" data-act="nav" data-v="create">${ic('plus')}새 글 만들기</button>`
     :`<button class="nav-btn" data-act="nav" data-v="${n.id}" ${UI.view===n.id?'aria-current="page"':''}>${ic(n.icon)}${n.label}${badge(n.id)?`<span class="badge">${badge(n.id)}</span>`:''}</button>`).join('');
   $('#bottomNav').innerHTML=BNAV.map(id=>navigation.find(n=>n.id===id)).filter(Boolean).map(n=>n.id==='create'
-    ?`<button class="fab" data-act="nav" data-v="create" aria-label="새 글 만들기">${ic('plus',26)}</button>`
+    ?`<button class="fab" data-act="nav" data-v="create" aria-label="새 글 만들기" ${UI.view==='create'?'aria-current="page"':''}>${ic('plus',26)}<span class="nav-create-label">새 글</span></button>`
     :`<button data-act="nav" data-v="${n.id}" ${UI.view===n.id?'aria-current="page"':''}>${ic(n.icon,22)}${n.label}${badge(n.id)?`<span class="badge nb">${badge(n.id)}</span>`:''}</button>`).join('');
 }
 
