@@ -1114,9 +1114,9 @@ function postModal(){
   </div></div>`;
 }
 function viewLanding(){
-  const inApp=S.setupDone&&!S.example;
   const logoSvg=document.querySelector('.brand .logo').innerHTML;
-  const startTxt=inApp?'내 가게로 들어가기':'무료로 시작하기';
+  // 로그인 연동 전에는 저장된 가게 정보와 관계없이 같은 진입 문구를 사용한다.
+  const startTxt='무료로 사용하기';
   const arr='<span class="arr" aria-hidden="true">→</span>';
   const CH=[['네이버 블로그','N','#03C75A','매장 PC의 크롬 확장이 대신 올려요'],['인스타그램','IG','linear-gradient(135deg,#F58529,#DD2A7B,#8134AF)','비즈니스 계정 공식 연결'],['유튜브 쇼츠','▶','#FF0033','사진으로 15초 영상을 자동 편집'],['스레드','@','#111','공식 연결로 바로 게시'],['플레이스 소식','P','#03C75A','블로그 글이 소식에 자동으로 떠요'],['당근','당','#FF6F0F','복사해서 붙여넣기만 하면 끝']];
   const mk=(c)=>`<span class="mk" style="background:${c[2]}">${c[1]}</span>`;
