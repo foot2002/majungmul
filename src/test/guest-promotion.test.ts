@@ -43,7 +43,7 @@ it("creates photo promotion without store setup and keeps saved store data out o
   const savedMaterials = JSON.stringify({ private: { summary: "PRIVATE_MATERIAL" } });
   localStorage.setItem("gk2-state", savedState);
   localStorage.setItem("gk2-mats", savedMaterials);
-  localStorage.setItem("majungmul-ai-provider", "openai");
+  localStorage.setItem("majungmul-ai-provider", "off");
   window.history.replaceState(null, "", "/?mode=guest");
   vi.mocked(getAiConfiguration).mockResolvedValue({
     defaultProvider: "openai",
@@ -110,7 +110,8 @@ it("creates photo promotion without store setup and keeps saved store data out o
   startMajungmul();
   const el = <T extends Element = HTMLElement>(selector: string) =>
     document.querySelector<T>(selector)!;
-  await waitFor(() => expect(el("#promotionProvider")).toHaveValue("openai"));
+  await waitFor(() => expect(getAiConfiguration).toHaveBeenCalled());
+  expect(document.querySelector("#promotionProvider")).not.toBeInTheDocument();
   expect(el("h1")).toHaveTextContent("사진으로 SNS 만들기");
   expect(document.querySelector("[data-field=name]")).not.toBeInTheDocument();
   expect(document.querySelector("[data-act=nav][data-v=store]")).not.toBeInTheDocument();
@@ -126,12 +127,15 @@ it("creates photo promotion without store setup and keeps saved store data out o
   await waitFor(() => expect(document.querySelector('img[alt="대표 사진"]')).toBeInTheDocument());
   expect(el<HTMLButtonElement>("[data-act=generate]").disabled).toBe(false);
   expect(requestAiJson).not.toHaveBeenCalled();
+  expect(document.querySelector("[data-pq]")).not.toBeInTheDocument();
+  expect(document.body.textContent).not.toMatch(/홍보물을 만들 AI|연결됨|더 알려주고 싶다면/);
   fireEvent.input(el("#fNote"), { target: { value: "오늘 준비한 음료를 소개해요" } });
   fireEvent.click(el("[data-act=generate]"));
   await waitFor(() => expect(document.querySelector("#dBody")).toBeInTheDocument());
   expect(requestAiJson).toHaveBeenCalledTimes(1);
   const request = vi.mocked(requestAiJson).mock.calls[0]![0].data;
   expect(request.task).toBe("photoPromotion");
+  expect(request.provider).toBe("openai");
   expect(request.images).toEqual(["data:image/jpeg;base64,YWJj"]);
   expect(request.prompt).toContain("오늘 준비한 음료를 소개해요");
   expect(request.prompt).not.toMatch(/PRIVATE_|77777|09:00|22:00/);
