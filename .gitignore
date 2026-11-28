@@ -18,6 +18,7 @@ artifacts/
 *.local
 .env
 .env.*
+.env_*
 
 # Wrangler / Cloudflare
 .wrangler/

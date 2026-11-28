@@ -1274,6 +1274,7 @@ function render(){
   if(v!=='create'||UI.flow?.stage!=='review')clearMediaStudio();
   document.body.classList.toggle('landing',v==='landing');
   $('#main').innerHTML=v==='landing'?viewLanding():v==='setup'?viewSetup():v==='home'?viewHome():v==='library'?viewLibrary():v==='create'?viewCreate():v==='status'?viewStatus():viewStore();
+  if(UI.aiStatus?.environment==='dev')$('#main').insertAdjacentHTML('afterbegin','<div class="banner warn" role="note" data-environment="dev"><b>개발 검증 환경</b><span>테스트용 화면입니다.</span></div>');
   if(v==='landing') initLanding(); else stopLanding();
   $('#modal').innerHTML=UI.modal==='picker'?pickerModal():UI.modal==='text'?textModal():UI.modal==='post'?postModal():'';
   if(v==='create'&&UI.flow?.stage==='review')mountMediaCards(render);

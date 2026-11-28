@@ -32,6 +32,8 @@ describe("AI server configuration", () => {
     expect(status.providers.map((p) => p.configured)).toEqual([true, false]);
     expect(JSON.stringify(status)).not.toContain(env.ANTHROPIC_API_KEY);
     expect(JSON.stringify(status)).not.toContain(env.OPENAI_API_KEY);
+    expect(getAiStatus({ ...env, APP_ENV: "dev" }).environment).toBe("dev");
+    expect(getAiStatus(env).environment).toBe("prod");
   });
   it("does not contact the provider when disabled", async () => {
     const fetcher = vi.fn();

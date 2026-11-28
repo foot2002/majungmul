@@ -13,7 +13,7 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "ai:models": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/list-ai-models.mjs"
+    "ai:models": "node --env-file=.env_dev scripts/list-ai-models.mjs"
   },
   "overrides": {
     "rolldown": "1.2.1"

@@ -20,7 +20,7 @@ const providers = [
 ];
 const configured = providers.filter((provider) => provider.key);
 if (!configured.length) {
-  console.error(".env에 ANTHROPIC_API_KEY 또는 OPENAI_API_KEY를 입력해 주세요.");
+  console.error(".env_dev에 ANTHROPIC_API_KEY 또는 OPENAI_API_KEY를 입력해 주세요.");
   process.exitCode = 1;
 } else {
   const results = await Promise.allSettled(
